@@ -7,14 +7,17 @@ import { ModulosModule } from './modulos/modulos.module';
 import { RutasModule } from './rutas/rutas.module';
 import { PermisosModule } from './permisos/permisos.module';
 
-
-
-import { SitiosModule } from './sitios/sitios.module';
 import { InventariosModule } from './inventarios/inventarios.module';
-import { CaracteristicasModule } from './caracteristicas/caracteristicas.module';
 import { UnidadesMedidaModule } from './unidades-medida/unidades-medida.module';
-import { CategoriasModule } from './categorias/categorias.module';
-import { ElementosModule } from './elementos/elementos.module';
+import { ProductosModule } from './productos/productos.module';
+import { CaracteristicasModule } from './caracteristicas/caracteristicas.module';
+
+// Nuevos módulos para el sistema de inventario
+import { LotesModule } from './lotes/lotes.module';
+import { UnidadesModule } from './unidades/unidades.module';
+import { MateriasPrimasModule } from './materias-primas/materias-primas.module';
+import { MovimientosModule } from './movimientos/movimientos.module';
+import { LoteMateriaPrimaModule } from './lote-materia-prima/lote-materia-prima.module';
 
 import { APP_FILTER } from '@nestjs/core';
 import { HttpExceptionFilter } from './common/filter/http-exception.filter';
@@ -23,7 +26,6 @@ import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { NotificacionesModule } from './notificaciones/notificaciones.module';
 import { AuthModule } from './auth/auth.module';
-import { CodigoInventarioModule } from './codigo-inventario/codigo-inventario.module';
 import { WebsocketModule } from './websocket/websocket.module';
 import { SeedsService } from './database/seeds/seeds.service';
 import { SeedsModule } from './database/seeds/seeds.module';
@@ -54,16 +56,20 @@ import { ScheduleModule } from '@nestjs/schedule';
     RutasModule,
     PermisosModule,
 
-    SitiosModule,
     InventariosModule,
-    CaracteristicasModule,
     UnidadesMedidaModule,
-    CategoriasModule,
-    ElementosModule,
+    ProductosModule,
+    CaracteristicasModule,
+
+    // Nuevos módulos
+    LotesModule,
+    UnidadesModule,
+    MateriasPrimasModule,
+    MovimientosModule,
+    LoteMateriaPrimaModule,
 
     RolPermisoModule,
     NotificacionesModule,
-    CodigoInventarioModule,
     AuthModule,
     WebsocketModule,
     CommandModule,

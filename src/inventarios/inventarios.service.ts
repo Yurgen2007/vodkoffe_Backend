@@ -11,8 +11,6 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Inventarios } from './entities/inventario.entity';
 import { Repository } from 'typeorm';
-import { CodigoInventario } from 'src/codigo-inventario/entities/codigo-inventario.entity';
-import { NotificacionesService } from 'src/notificaciones/notificaciones.service';
 
 
 @Injectable()
@@ -36,7 +34,7 @@ export class InventariosService {
   async findOne(idInventario: number): Promise<Inventarios | null> {
     const inventario = await this.inventarioRepository.findOne({
       where: { idInventario },
-      relations: ['elementos', 'elementos.fkSitio'],
+      relations: ['elementos'],
     });
 
     if (!inventario) {

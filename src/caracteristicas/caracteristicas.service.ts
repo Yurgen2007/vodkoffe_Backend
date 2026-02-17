@@ -1,92 +1,86 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { Repository } from 'typeorm';
-import { Caracteristicas } from './entities/caracteristica.entity';
+import { InjectRepository } from '@nestjs/typeorm';
 import { CreateCaracteristicaDto } from './dto/create-caracteristica.dto';
 import { UpdateCaracteristicaDto } from './dto/update-caracteristica.dto';
+import { Caracteristicas } from './entities/caracteristica.entity';
 
 @Injectable()
 export class CaracteristicasService {
   constructor(
     @InjectRepository(Caracteristicas)
-    private caracteristicasRepository: Repository<Caracteristicas>,
+    private readonly caracteristicaRepository: Repository<Caracteristicas>,
   ) {}
 
-  async create(createCaracteristicaDto: CreateCaracteristicaDto) {
-    const newCaracteristicas = this.caracteristicasRepository.create({
-      ...createCaracteristicaDto,
-    });
-
-    const savedCaracteristica =
-      await this.caracteristicasRepository.save(newCaracteristicas);
-    return savedCaracteristica;
+  async create(createCaracteristicaDto: CreateCaracteristicaDto): Promise<Caracteristicas> {
+    const caracteristica = this.caracteristicaRepository.create(createCaracteristicaDto);
+    return await this.caracteristicaRepository.save(caracteristica);
   }
 
-  async findAll() {
-    return await this.caracteristicasRepository.find();
+  async findAll(): Promise<Caracteristicas[]> {
+    return await this.caracteristicaRepository.find({
+      relations: ['elementos'],
+    });
   }
 
-  async findOne(nombre: string) {
-    const caracteristicas = await this.caracteristicasRepository.findOneBy({
-      nombre,
+  async findOne(idCaracteristica: number): Promise<Caracteristicas | null> {
+    const caracteristica = await this.caracteristicaRepository.findOne({
+      where: { idCaracteristica },
+      relations: ['elementos'],
     });
-    if (!caracteristicas)
-      throw new HttpException(
-        'Caracteristica no encontrada',
-        HttpStatus.NOT_FOUND,
+
+    if (!caracteristica) {
+      throw new NotFoundException(
+        `No se encontró la característica, el id ${idCaracteristica} no existe`,
       );
-    return caracteristicas;
+    }
+
+    return caracteristica;
   }
 
-  async update(id: number, updateCaracteristica: UpdateCaracteristicaDto) {
-    const caracteristicas = await this.caracteristicasRepository.findOne({
-      where: {
-        idCaracteristica: id,
-      },
+  async update(idCaracteristica: number, updateCaracteristicaDto: UpdateCaracteristicaDto) {
+    const caracteristica = await this.caracteristicaRepository.findOne({
+      where: { idCaracteristica },
     });
-    if (!caracteristicas)
-      throw new HttpException(
-        'Caracteristica no encontrada',
-        HttpStatus.NOT_FOUND,
-      );
 
-    const updatedCaracteristica = await this.caracteristicasRepository.update(
-      id,
-      {
-        ...updateCaracteristica,
-      },
-    );
-    if (!updatedCaracteristica.affected)
-      throw new HttpException(
-        'Error actualizano caracteristica',
-        HttpStatus.BAD_REQUEST,
+    if (!caracteristica) {
+      throw new NotFoundException(
+        `No se encontró la característica, el id ${idCaracteristica} no existe`,
       );
+    }
 
-    const newCaracteristica = await this.caracteristicasRepository.findOne({
-      where: {
-        idCaracteristica: id,
-      },
-    });
-    return newCaracteristica;
+    Object.assign(caracteristica, updateCaracteristicaDto);
+    await this.caracteristicaRepository.save(caracteristica);
+
+    return { status: 200, message: 'Datos actualizados con éxito' };
   }
 
-  async remove(id: number) {
-    const caracteristica = await this.caracteristicasRepository.findOne({
-      where: { idCaracteristica: id },
+  async changeStatus(idCaracteristica: number) {
+    const caracteristica = await this.caracteristicaRepository.findOneBy({
+      idCaracteristica,
     });
-    if (!caracteristica)
-      throw new HttpException(
-        'Caracteristica no encontrada',
-        HttpStatus.NOT_FOUND,
-      );
 
-    const deleted = await this.caracteristicasRepository.delete(id);
-    if (!deleted.affected)
-      throw new HttpException(
-        'Error al eliminar caracteristica',
-        HttpStatus.BAD_REQUEST,
+    if (!caracteristica) {
+      throw new NotFoundException(
+        `No se encontró la característica, el id ${idCaracteristica} no existe`,
       );
+    }
 
-    return { message: 'Caracteristica eliminada correctamente' };
+    caracteristica.estado = !caracteristica.estado;
+    return await this.caracteristicaRepository.save(caracteristica);
+  }
+
+  async remove(idCaracteristica: number) {
+    const caracteristica = await this.caracteristicaRepository.findOne({
+      where: { idCaracteristica },
+    });
+
+    if (!caracteristica) {
+      throw new NotFoundException(
+        `No se encontró la característica, el id ${idCaracteristica} no existe`,
+      );
+    }
+
+    return await this.caracteristicaRepository.remove(caracteristica);
   }
 }

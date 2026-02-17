@@ -1,26 +1,33 @@
-import { Column, Entity, OneToMany, PrimaryGeneratedColumn } from 'typeorm';
-import { Elementos } from '../../elementos/entities/elemento.entity';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+} from 'typeorm';
+import { Productos } from '../../productos/entities/producto.entity';
 
-@Entity('caracteristicas', { schema: 'public' })
+@Entity('caracteristicas')
 export class Caracteristicas {
-  @PrimaryGeneratedColumn({ type: 'integer', name: 'id_caracteristica' })
+  @PrimaryGeneratedColumn({ name: 'id_caracteristica' })
   idCaracteristica: number;
 
-  @Column('character varying', { name: 'nombre', nullable: true, length: 70 })
-  nombre: string | null;
+  @Column({ type: 'varchar', length: 100 })
+  nombre: string;
 
-  @Column('timestamp without time zone', {
-    name: 'created_at',
-    default: () => 'now()',
-  })
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  descripcion: string;
+
+  @Column({ type: 'boolean', default: true })
+  estado: boolean;
+
+  @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
-  @Column('timestamp without time zone', {
-    name: 'updated_at',
-    default: () => 'now()',
-  })
+  @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @OneToMany(() => Elementos, (elementos) => elementos.fkCaracteristica)
-  elementos: Elementos[];
+  @OneToMany(() => Productos, (producto) => producto.fkCaracteristica)
+  productos: Productos[];
 }

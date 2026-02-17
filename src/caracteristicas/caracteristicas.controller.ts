@@ -1,9 +1,17 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Patch,
+  Param,
+  Delete,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { CaracteristicasService } from './caracteristicas.service';
-import { CreateCaracteristicaDto, UpdateCaracteristicaDto } from './dto';
-import { JwtGuard } from 'src/auth/guards/jwt.guard';
+import { CreateCaracteristicaDto } from './dto/create-caracteristica.dto';
+import { UpdateCaracteristicaDto } from './dto/update-caracteristica.dto';
 
-@UseGuards(JwtGuard)
 @Controller('caracteristicas')
 export class CaracteristicasController {
   constructor(private readonly caracteristicasService: CaracteristicasService) {}
@@ -18,18 +26,26 @@ export class CaracteristicasController {
     return this.caracteristicasService.findAll();
   }
 
-  @Get(':name')
-  findOne(@Param('name') name: string) {
-    return this.caracteristicasService.findOne(name);
+  @Get(':id')
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.caracteristicasService.findOne(id);
   }
 
-  @Patch('update/:id')
-  update(@Param('id') id: string, @Body() updateCaracteristicaDto: UpdateCaracteristicaDto) {
-    return this.caracteristicasService.update(+id, updateCaracteristicaDto);
+  @Patch(':id')
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateCaracteristicaDto: UpdateCaracteristicaDto,
+  ) {
+    return this.caracteristicasService.update(id, updateCaracteristicaDto);
+  }
+
+  @Patch('status/:id')
+  changeStatus(@Param('id', ParseIntPipe) id: number) {
+    return this.caracteristicasService.changeStatus(id);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.caracteristicasService.remove(+id);
+  remove(@Param('id', ParseIntPipe) id: number) {
+    return this.caracteristicasService.remove(id);
   }
 }

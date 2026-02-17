@@ -1,13 +1,12 @@
 import {
-  BeforeInsert,
-  BeforeUpdate,
   Column,
   Entity,
   OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { Elementos } from '../../elementos/entities/elemento.entity';
+import { Productos } from '../../productos/entities/producto.entity';
+import { MateriasPrimas } from '../../materias-primas/entities/materia-prima.entity';
 
 @Entity('unidades_medida', { schema: 'public' })
 export class UnidadesMedida {
@@ -33,6 +32,11 @@ export class UnidadesMedida {
   })
   updatedAt: Date;
 
-  @OneToMany(() => Elementos, (elementos) => elementos.fkUnidadMedida)
-  elementos: Elementos[];
+  // Relación con Productos
+  @OneToMany(() => Productos, (productos) => productos.fkUnidadMedida)
+  productos: Productos[];
+
+  // Relación con Materias Primas
+  @OneToMany(() => MateriasPrimas, (materiasPrimas) => materiasPrimas.unidadMedida)
+  materiasPrimas: MateriasPrimas[];
 }

@@ -1,15 +1,9 @@
 import {
-  BeforeInsert,
-  BeforeUpdate,
   Column,
   Entity,
-  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { Elementos } from '../../elementos/entities/elemento.entity';
-import { CodigoInventario } from '../../codigo-inventario/entities/codigo-inventario.entity';
-
 
 @Entity('inventarios', { schema: 'public' })
 export class Inventarios {
@@ -34,7 +28,4 @@ export class Inventarios {
     default: () => "now()",
   })
   updatedAt: Date;
-
-  @OneToMany(() => Elementos, (elementos) => elementos.fkInventario)
-  elementos: Elementos[];
 }

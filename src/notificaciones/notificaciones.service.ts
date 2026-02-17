@@ -5,7 +5,7 @@ import { Notificaciones } from './entities/notificacione.entity';
 import { CreateNotificacioneDto, UpdateNotificacioneDto } from './dto';
 import { Usuarios } from 'src/usuarios/entities/usuario.entity';
 import { WebsocketGateway } from 'src/websocket/websocket.gateway';
-import { Elementos } from 'src/elementos/entities/elemento.entity';
+import { Productos } from 'src/productos/entities/producto.entity';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { EmailService } from 'src/auth/email/email.service';
 import { stockBajoEmail, caducidadEmail } from 'src/auth/email/mail.body';
@@ -24,8 +24,8 @@ export class NotificacionesService {
     private readonly notificacionRepository: Repository<Notificaciones>,
     @InjectRepository(Usuarios)
     private readonly usuarioRepository: Repository<Usuarios>,
-    @InjectRepository(Elementos)
-    private readonly elementoRepository: Repository<Elementos>,
+    @InjectRepository(Productos)
+    private readonly productoRepository: Repository<Productos>,
     private readonly websocketGateway: WebsocketGateway,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
@@ -61,31 +61,31 @@ export class NotificacionesService {
       order: { createdAt: 'DESC' },
     });
 
-    // Obtener los ID de elementos de las notificaciones
-    const idsElementos = notificaciones
-      .map((n) => n.data?.idElemento)
-      .filter((id) => !!id); // solo los que tengan idElemento
+    // Obtener los ID de productos de las notificaciones
+    const idsProductos = notificaciones
+      .map((n) => n.data?.idProducto)
+      .filter((id) => !!id); // solo los que tengan idProducto
 
-    // Consultar estado de esos elementos
-    const elementos = await this.elementoRepository.find({
+    // Consultar estado de esos productos
+    const productos = await this.productoRepository.find({
       where:
-        idsElementos.length > 0
-          ? { idElemento: In(idsElementos) }
+        idsProductos.length > 0
+          ? { idProducto: In(idsProductos) }
           : {},
     });
 
-    // Crear un mapa de idElemento => estado
-    const estadoPorElemento: Record<number, boolean> = {};
-    for (const el of elementos) {
-      if (el.estado === true) {
-        estadoPorElemento[el.idElemento] = true;
+    // Crear un mapa de idProducto => estado
+    const estadoPorProducto: Record<number, boolean> = {};
+    for (const prod of productos) {
+      if (prod.estado === true) {
+        estadoPorProducto[prod.idProducto] = true;
       }
     }
 
-    // Filtrar las notificaciones con idElemento cuyo elemento este activo, o que no tengan idElemento
+    // Filtrar las notificaciones con idProducto cuyo producto este activo, o que no tengan idProducto
     return notificaciones.filter((n) => {
-      const idEl = n.data?.idElemento;
-      return !idEl || estadoPorElemento[idEl] === true;
+      const idProd = n.data?.idProducto;
+      return !idProd || estadoPorProducto[idProd] === true;
     });
   }
 
@@ -346,122 +346,15 @@ export class NotificacionesService {
   }
 
   async notificarStockBajo(elemento: any) {
-    // Verificar si el elemento esta activo (estado true o null)
-    if (elemento.estado === false) {
-      console.log(`Elemento ${elemento.nombre} esta inactivo, saltando notificacion de stock`);
-      return;
-    }
-    
-    console.log(`Verificando stock bajo para: ${elemento.nombre}, stock actual: ${elemento.stock}`);
-    
-    if (elemento.stock <= 5) {
-      console.log(`Stock bajo detectado: ${elemento.nombre} tiene ${elemento.stock} unidades`);
-
-      const admins = await this.buscarAdministradores();
-
-      if (admins.length === 0) {
-        console.log('No hay administradores para notificar stock bajo');
-        return;
-      }
-
-      const mensaje = `Stock Bajo: El elemento "${elemento.nombre}" tiene ${elemento.stock} unidades.`;
-
-      for (const admin of admins) {
-        console.log('Enviando notificacion de stock a:', admin.idUsuario);
-        await this.enviarYGuardarNotificacion(
-          '⚠️ Stock bajo',
-          mensaje,
-          false,
-          admin,
-          {
-            idElemento: elemento.idElemento,
-            stock: elemento.stock,
-            nombreElemento: elemento.nombre,
-            codigoBarras: elemento.codigoBarras,
-          },
-        );
-        // Enviar correo
-        try {
-          const credentials = await this.getMailCredentials();
-          await this.emailService.sendMail({
-            to: admin.correo,
-            subject: '⚠️ Alerta de Stock Bajo - FarmaMedica',
-            html: stockBajoEmail(elemento.nombre, elemento.stock, elemento.codigoBarras),
-          }, credentials);
-          console.log(`Correo de stock bajo enviado a ${admin.correo}`);
-        } catch (error) {
-          console.error('Error enviando correo de stock bajo:', error);
-        }
-      }
-    } else {
-      console.log(`Stock OK: ${elemento.nombre} tiene ${elemento.stock} unidades (umbral: 5)`);
-    }
+    // El stock ahora se maneja por lotes y unidades
+    // Esta función se mantiene por compatibilidad pero no hace nada
+    console.log(`Verificación de stock para: ${elemento.nombre} - ahora manejado por lotes`);
   }
 
   async notificarProximaCaducidad(elemento: any) {
-    // Verificar si el elemento esta activo (estado true o null)
-    if (elemento.estado === false) {
-      console.log(`Elemento ${elemento.nombre} esta inactivo, saltando notificacion de caducidad`);
-      return;
-    }
-
-    if (!elemento.fechaVencimiento) {
-      console.log(`Elemento ${elemento.nombre} no tiene fecha de vencimiento`);
-      return;
-    }
-
-    const hoy = new Date();
-    const fechaCaducidad = new Date(elemento.fechaVencimiento);
-    const diasRestantes = Math.ceil(
-      (fechaCaducidad.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24),
-    );
-
-    console.log(`Verificando caducidad para: ${elemento.nombre}, dias restantes: ${diasRestantes}`);
-
-    if (diasRestantes <= 15 && diasRestantes >= 0) {
-      console.log(`Caducidad proxima: ${elemento.nombre} caduca en ${diasRestantes} dias`);
-
-      const admins = await this.buscarAdministradores();
-
-      if (admins.length === 0) {
-        console.log('No hay administradores para notificar caducidad');
-        return;
-      }
-
-      const mensaje = `El elemento "${elemento.nombre}" caduca en ${diasRestantes} dias (${fechaCaducidad.toLocaleDateString()}).`;
-
-      for (const admin of admins) {
-        await this.enviarYGuardarNotificacion(
-          '🗓️ Elemento por caducar',
-          mensaje,
-          false,
-          admin,
-          {
-            idElemento: elemento.idElemento,
-            fechaCaducidad: elemento.fechaVencimiento,
-            diasRestantes,
-            nombreElemento: elemento.nombre,
-            codigoBarras: elemento.codigoBarras,
-          },
-        );
-        // Enviar correo
-        try {
-          const credentials = await this.getMailCredentials();
-          await this.emailService.sendMail({
-            to: admin.correo,
-            subject: '🗓️ Alerta de Caducidad Proxima - FarmaMedica',
-            html: caducidadEmail(elemento.nombre, diasRestantes, elemento.fechaVencimiento, elemento.codigoBarras),
-          }, credentials);
-          console.log(`Correo de caducidad enviado a ${admin.correo}`);
-        } catch (error) {
-          console.error('Error enviando correo de caducidad:', error);
-        }
-      }
-    } else if (diasRestantes > 15) {
-      console.log(`Caducidad OK: ${elemento.nombre} tiene ${diasRestantes} dias (umbral: 15)`);
-    } else {
-      console.log(`Elemento ${elemento.nombre} ya vencio (hace ${Math.abs(diasRestantes)} dias)`);
-    }
+    // La fecha de vencimiento ahora se maneja por lote
+    // Esta función se mantiene por compatibilidad pero no hace nada
+    console.log(`Verificación de caducidad para: ${elemento.nombre} - ahora manejado por lotes`);
   }
 
 
@@ -506,19 +399,8 @@ export class NotificacionesService {
 
   async verificarInventariosYNotificar() {
     console.log('Iniciando verificacion de inventarios...');
-    
-    const elementos = await this.elementoRepository.find();
-    console.log(`Elementos encontrados: ${elementos.length}`);
-    
-    for (const el of elementos) {
-      console.log(`\nVerificando elemento: ${el.nombre} (ID: ${el.idElemento})`);
-      console.log(`   Stock: ${el.stock}, Estado: ${el.estado}`);
-      console.log(`   FechaVencimiento: ${el.fechaVencimiento}`);
-      
-      await this.notificarStockBajo(el);
-      await this.notificarProximaCaducidad(el);
-    }
-    
-    console.log('\nVerificacion de inventarios completada');
+    // El stock y vencimiento ahora se manejan por lotes
+    // Esta función se mantiene por compatibilidad
+    console.log('Verificacion de inventarios completada - ahora manejado por lotes');
   }
 }
