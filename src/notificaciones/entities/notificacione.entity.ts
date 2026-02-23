@@ -22,10 +22,10 @@ export class Notificaciones {
   @Column({ type: 'boolean', default: false })
   leido: boolean;
 
-  @Column({ type: 'boolean', default: false })
+  @Column({ type: 'boolean', default: false, name: 'requiere_accion' })
   requiereAccion: boolean;
 
-  @Column({ type: 'varchar', length: 50, nullable: true })
+  @Column({ type: 'varchar', length: 50, nullable: true, name: 'estado' })
   estado?: 'aceptado' | 'cancelado' | 'enProceso'| null; 
 
   @Column({ type: 'jsonb', nullable: true })

@@ -12,7 +12,10 @@ import { ModulosService } from './modulos.service';
 import { CreateModuloDto } from './dto/create-modulo.dto';
 import { UpdateModuloDto } from './dto/update-modulo.dto';
 import { JwtGuard } from 'src/auth/guards/jwt.guard';
-// @UseGuards(JwtGuard)
+import { PermisoGuard } from 'src/auth/guards/permiso.guard';
+import { Permiso } from 'src/auth/decorators/permiso.decorator';
+
+@UseGuards(JwtGuard, PermisoGuard)
 @Controller('modulos')
 export class ModulosController {
   constructor(private readonly modulosService: ModulosService) {}

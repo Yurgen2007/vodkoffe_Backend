@@ -5,7 +5,6 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { Productos } from '../../productos/entities/producto.entity';
 import { MateriasPrimas } from '../../materias-primas/entities/materia-prima.entity';
 
 @Entity('unidades_medida', { schema: 'public' })
@@ -31,10 +30,6 @@ export class UnidadesMedida {
     default: () => "now()",
   })
   updatedAt: Date;
-
-  // Relación con Productos
-  @OneToMany(() => Productos, (productos) => productos.fkUnidadMedida)
-  productos: Productos[];
 
   // Relación con Materias Primas
   @OneToMany(() => MateriasPrimas, (materiasPrimas) => materiasPrimas.unidadMedida)

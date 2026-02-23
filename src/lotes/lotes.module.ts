@@ -4,13 +4,12 @@ import { LotesService } from './lotes.service';
 import { LotesController } from './lotes.controller';
 import { Lotes } from './entities/lote.entity';
 import { Unidades } from '../unidades/entities/unidad.entity';
-import { Productos } from '../productos/entities/producto.entity';
 import { LoteMateriaPrima } from '../lote-materia-prima/entities/lote-materia-prima.entity';
 import { MateriasPrimas } from '../materias-primas/entities/materia-prima.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Lotes, Unidades, Productos, LoteMateriaPrima, MateriasPrimas]),
+    TypeOrmModule.forFeature([Lotes, Unidades, LoteMateriaPrima, MateriasPrimas]),
   ],
   controllers: [LotesController],
   providers: [LotesService],

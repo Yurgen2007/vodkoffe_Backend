@@ -4,9 +4,10 @@ export class CreateLoteDto {
   @IsString()
   codigoLote: string;
 
+  @IsOptional()
   @IsInt()
   @Min(1)
-  cantidadUnidades: number;
+  cantidadUnidades?: number;
 
   @IsDate()
   fechaProduccion: Date;
@@ -22,9 +23,6 @@ export class CreateLoteDto {
   @IsOptional()
   @IsBoolean()
   estado?: boolean;
-
-  @IsInt()
-  fkProducto: number;
 
   // Materias primas para este lote
   @IsOptional()

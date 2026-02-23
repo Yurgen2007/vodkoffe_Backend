@@ -18,6 +18,16 @@ export class MovimientosService {
   ) {}
 
   async create(createMovimientoDto: CreateMovimientoDto): Promise<Movimientos> {
+    // Si es movimiento de inventario
+    if (createMovimientoDto.tipo === 'INVENTARIO') {
+      return await this.createMovimientoInventario(createMovimientoDto);
+    }
+
+    // Si es VENTA o NO_VENTA (movimientos originales)
+    return await this.createMovimientoVenta(createMovimientoDto);
+  }
+
+  private async createMovimientoVenta(createMovimientoDto: CreateMovimientoDto): Promise<Movimientos> {
     // Validar que al menos una cantidad sea mayor a 0
     const totalUnidades = createMovimientoDto.cantidadVendida + 
                           createMovimientoDto.cantidadDegustacion + 
@@ -106,22 +116,59 @@ export class MovimientosService {
       unidadesAMover[indiceActual].estado = 'ALIANZA';
       indiceActual++;
     }
-
-    // Unidades de tipo OTRO
+    
+    // Unidades de otro tipo
     for (let i = 0; i < createMovimientoDto.cantidadOtro; i++) {
       unidadesAMover[indiceActual].estado = 'OTRO';
       indiceActual++;
     }
 
-    // Guardar las unidades actualizadas
+    // Guardar los cambios en las unidades
     await this.unidadesRepository.save(unidadesAMover);
 
     return savedMovimiento;
   }
 
+  private async createMovimientoInventario(createMovimientoDto: CreateMovimientoDto): Promise<Movimientos> {
+    if (!createMovimientoDto.tipoInventario) {
+      throw new BadRequestException('Debe especificar el tipo de inventario (entrada, salida, ajuste)');
+    }
+
+    if (!createMovimientoDto.cantidadInventario || createMovimientoDto.cantidadInventario <= 0) {
+      throw new BadRequestException('Debe especificar una cantidad válida para el movimiento de inventario');
+    }
+
+    // Buscar la unidad
+    const unidad = await this.unidadesRepository.findOne({
+      where: { idUnidad: createMovimientoDto.fkUnidad },
+    });
+
+    if (!unidad) {
+      throw new NotFoundException(`Unidad con ID ${createMovimientoDto.fkUnidad} no encontrada`);
+    }
+
+    // Crear el movimiento de inventario
+    const lote = createMovimientoDto.fkLote 
+      ? await this.lotesRepository.findOne({ where: { idLote: createMovimientoDto.fkLote } })
+      : null;
+
+    const movimiento = this.movimientosRepository.create({
+      tipo: 'INVENTARIO',
+      tipoInventario: createMovimientoDto.tipoInventario,
+      cantidadInventario: createMovimientoDto.cantidadInventario,
+      cantidadTotal: createMovimientoDto.cantidadInventario,
+      descripcion: createMovimientoDto.descripcion,
+      fechaMovimiento: createMovimientoDto.fechaMovimiento,
+      unidad: unidad,
+      lote: lote || undefined,
+    });
+
+    return await this.movimientosRepository.save(movimiento);
+  }
+
   findAll(): Promise<Movimientos[]> {
     return this.movimientosRepository.find({
-      relations: ['lote', 'lote.producto'],
+      relations: ['lote', 'unidad', 'usuario'],
       order: { fechaMovimiento: 'DESC' },
     });
   }
@@ -129,7 +176,7 @@ export class MovimientosService {
   async findOne(id: number): Promise<Movimientos> {
     const movimiento = await this.movimientosRepository.findOne({
       where: { idMovimiento: id },
-      relations: ['lote', 'lote.producto'],
+      relations: ['lote', 'unidad', 'usuario'],
     });
     if (!movimiento) {
       throw new NotFoundException(`Movimiento con ID ${id} no encontrado`);
@@ -157,14 +204,26 @@ export class MovimientosService {
       where: {
         fechaMovimiento: Between(fechaInicio, fechaFin),
       },
-      relations: ['lote', 'lote.producto'],
+      relations: ['lote'],
     });
 
-    const totalVendidas = movimientos.reduce((sum, m) => sum + m.cantidadVendida, 0);
-    const totalDegustacion = movimientos.reduce((sum, m) => sum + m.cantidadDegustacion, 0);
-    const totalAlianza = movimientos.reduce((sum, m) => sum + m.cantidadAlianza, 0);
-    const totalOtro = movimientos.reduce((sum, m) => sum + (m.cantidadOtro || 0), 0);
-    const totalIngresos = movimientos.reduce((sum, m) => sum + Number(m.precioTotal), 0);
+    // Filtrar solo movimientos de venta
+    const movimientosVenta = movimientos.filter(m => m.tipo === 'VENTA' || m.tipo === 'NO_VENTA');
+    
+    const totalVendidas = movimientosVenta.reduce((sum, m) => sum + m.cantidadVendida, 0);
+    const totalDegustacion = movimientosVenta.reduce((sum, m) => sum + m.cantidadDegustacion, 0);
+    const totalAlianza = movimientosVenta.reduce((sum, m) => sum + m.cantidadAlianza, 0);
+    const totalOtro = movimientosVenta.reduce((sum, m) => sum + (m.cantidadOtro || 0), 0);
+    const totalIngresos = movimientosVenta.reduce((sum, m) => sum + Number(m.precioTotal), 0);
+
+    // Movimientos de inventario
+    const movimientosInventario = movimientos.filter(m => m.tipo === 'INVENTARIO');
+    const totalEntradas = movimientosInventario
+      .filter(m => m.tipoInventario === 'entrada')
+      .reduce((sum, m) => sum + m.cantidadInventario, 0);
+    const totalSalidas = movimientosInventario
+      .filter(m => m.tipoInventario === 'salida')
+      .reduce((sum, m) => sum + m.cantidadInventario, 0);
 
     return {
       mes,
@@ -175,17 +234,18 @@ export class MovimientosService {
       totalUnidadesOtro: totalOtro,
       totalUnidadesMovidas: totalVendidas + totalDegustacion + totalAlianza + totalOtro,
       totalIngresos,
+      totalEntradasInventario: totalEntradas,
+      totalSalidasInventario: totalSalidas,
       movimientos,
     };
   }
 
-  // Reporte por producto
-  async getReportePorProducto(productoId: number, mes?: number, anio?: number) {
+  // Reporte por lote
+  async getReportePorLote(loteId: number, mes?: number, anio?: number) {
     const queryBuilder = this.movimientosRepository
       .createQueryBuilder('movimiento')
       .leftJoinAndSelect('movimiento.lote', 'lote')
-      .leftJoinAndSelect('lote.producto', 'producto')
-      .where('producto.idElemento = :productoId', { productoId });
+      .where('lote.idLote = :loteId', { loteId });
 
     if (mes && anio) {
       const fechaInicio = new Date(anio, mes - 1, 1);
@@ -205,7 +265,7 @@ export class MovimientosService {
     const totalIngresos = movimientos.reduce((sum, m) => sum + Number(m.precioTotal), 0);
 
     return {
-      productoId,
+      loteId,
       totalUnidadesVendidas: totalVendidas,
       totalUnidadesDegustacion: totalDegustacion,
       totalUnidadesAlianza: totalAlianza,

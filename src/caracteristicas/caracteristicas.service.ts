@@ -18,15 +18,12 @@ export class CaracteristicasService {
   }
 
   async findAll(): Promise<Caracteristicas[]> {
-    return await this.caracteristicaRepository.find({
-      relations: ['elementos'],
-    });
+    return await this.caracteristicaRepository.find();
   }
 
   async findOne(idCaracteristica: number): Promise<Caracteristicas | null> {
     const caracteristica = await this.caracteristicaRepository.findOne({
       where: { idCaracteristica },
-      relations: ['elementos'],
     });
 
     if (!caracteristica) {

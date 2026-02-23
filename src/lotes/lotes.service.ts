@@ -3,21 +3,21 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { Lotes } from './entities/lote.entity';
 import { CreateLoteDto, UpdateLoteDto } from './dto';
-import { Productos } from '../productos/entities/producto.entity';
 import { LoteMateriaPrima } from '../lote-materia-prima/entities/lote-materia-prima.entity';
 import { MateriasPrimas } from '../materias-primas/entities/materia-prima.entity';
+import { Unidades, EstadoUnidad } from '../unidades/entities/unidad.entity';
 
 @Injectable()
 export class LotesService {
   constructor(
     @InjectRepository(Lotes)
     private readonly loteRepository: Repository<Lotes>,
-    @InjectRepository(Productos)
-    private readonly productosRepository: Repository<Productos>,
     @InjectRepository(LoteMateriaPrima)
     private readonly loteMateriaPrimaRepository: Repository<LoteMateriaPrima>,
     @InjectRepository(MateriasPrimas)
     private readonly materiasPrimasRepository: Repository<MateriasPrimas>,
+    @InjectRepository(Unidades)
+    private readonly unidadesRepository: Repository<Unidades>,
     private dataSource: DataSource,
   ) {}
 
@@ -27,22 +27,28 @@ export class LotesService {
     await queryRunner.startTransaction();
 
     try {
-      // Verificar que el producto existe
-      const producto = await this.productosRepository.findOne({
-        where: { idProducto: createLoteDto.fkProducto },
-      });
-      if (!producto) {
-        throw new NotFoundException(`Producto con ID ${createLoteDto.fkProducto} no encontrado`);
-      }
-
       // Crear el lote
+      const cantidadUnidades = createLoteDto.cantidadUnidades || 0;
       const lote = this.loteRepository.create({
         ...createLoteDto,
-        producto: producto,
-        costoTotal: createLoteDto.cantidadUnidades * createLoteDto.costoUnitario,
+        cantidadUnidades,
+        costoTotal: cantidadUnidades * createLoteDto.costoUnitario,
         costoMateriasPrimas: 0,
       });
       const savedLote = await queryRunner.manager.save(lote);
+
+      // Crear las unidades del lote
+      if (cantidadUnidades > 0) {
+        for (let i = 1; i <= cantidadUnidades; i++) {
+          const codigoUnidad = `${savedLote.codigoLote}-U${i.toString().padStart(2, '0')}`;
+          const unidad = this.unidadesRepository.create({
+            codigoUnidad,
+            estado: 'DISPONIBLE' as EstadoUnidad,
+            fkLote: savedLote.idLote,
+          });
+          await queryRunner.manager.save(unidad);
+        }
+      }
 
       // Registrar materias primas del lote
       let costoTotalMateriasPrimas = 0;
@@ -83,14 +89,14 @@ export class LotesService {
 
   findAll(): Promise<Lotes[]> {
     return this.loteRepository.find({
-      relations: ['producto', 'unidades', 'materiasPrimas', 'materiasPrimas.materiaPrima'],
+      relations: ['unidades', 'materiasPrimas', 'materiasPrimas.materiaPrima'],
     });
   }
 
   async findOne(id: number): Promise<Lotes> {
     const lote = await this.loteRepository.findOne({
       where: { idLote: id },
-      relations: ['producto', 'unidades', 'materiasPrimas', 'materiasPrimas.materiaPrima'],
+      relations: ['unidades', 'materiasPrimas', 'materiasPrimas.materiaPrima'],
     });
     if (!lote) {
       throw new NotFoundException(`Lote con ID ${id} no encontrado`);

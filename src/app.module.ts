@@ -9,7 +9,6 @@ import { PermisosModule } from './permisos/permisos.module';
 
 import { InventariosModule } from './inventarios/inventarios.module';
 import { UnidadesMedidaModule } from './unidades-medida/unidades-medida.module';
-import { ProductosModule } from './productos/productos.module';
 import { CaracteristicasModule } from './caracteristicas/caracteristicas.module';
 
 // Nuevos módulos para el sistema de inventario
@@ -58,7 +57,6 @@ import { ScheduleModule } from '@nestjs/schedule';
 
     InventariosModule,
     UnidadesMedidaModule,
-    ProductosModule,
     CaracteristicasModule,
 
     // Nuevos módulos

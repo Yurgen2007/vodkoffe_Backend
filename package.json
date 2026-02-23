@@ -21,6 +21,7 @@
     "migration:create": "npx typeorm-ts-node-commonjs migration:create src/migrations/",
     "migration:generate": "npx typeorm-ts-node-commonjs migration:generate -d src/data-source.ts src/migrations/",
     "migration:run": "npx typeorm-ts-node-commonjs -d src/data-source.ts migration:run",
+    "migration:show": "npx typeorm-ts-node-commonjs -d src/data-source.ts migration:show",
     "migration:revert": "npx typeorm -d src/data-source.ts migration:revert",
     "seed": "ts-node -r tsconfig-paths/register src/cli.ts seed:database"
   },
@@ -39,6 +40,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
     "cookie-parser": "^1.4.7",
+    "dotenv": "^17.3.1",
     "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
     "multer": "^2.0.1",

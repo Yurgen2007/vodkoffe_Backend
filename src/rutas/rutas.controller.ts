@@ -3,7 +3,10 @@ import { RutasService } from './rutas.service';
 import { CreateRutaDto } from './dto/create-ruta.dto';
 import { UpdateRutaDto } from './dto/update-ruta.dto';
 import { JwtGuard } from 'src/auth/guards/jwt.guard';
-@UseGuards(JwtGuard)
+import { PermisoGuard } from 'src/auth/guards/permiso.guard';
+import { Permiso } from 'src/auth/decorators/permiso.decorator';
+
+@UseGuards(JwtGuard, PermisoGuard)
 @Controller('rutas')
 export class RutasController {
   constructor(private readonly rutasService: RutasService) {}

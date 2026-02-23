@@ -7,6 +7,7 @@ import {
   Patch,
   Delete,
   NotFoundException,
+  UseGuards,
 } from '@nestjs/common';
 import { NotificacionesService } from './notificaciones.service';
 import { CreateNotificacioneDto, UpdateNotificacioneDto } from './dto';
@@ -14,7 +15,11 @@ import { WebsocketGateway } from 'src/websocket/websocket.gateway';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Usuarios } from 'src/usuarios/entities/usuario.entity';
 import { Repository } from 'typeorm';
+import { JwtGuard } from 'src/auth/guards/jwt.guard';
+import { PermisoGuard } from 'src/auth/guards/permiso.guard';
+import { Permiso } from 'src/auth/decorators/permiso.decorator';
 
+@UseGuards(JwtGuard, PermisoGuard)
 @Controller('notificaciones')
 export class NotificacionesController {
   constructor(
@@ -41,6 +46,7 @@ export class NotificacionesController {
   }
 
   @Get()
+  @Permiso(93)
   findAll() {
     return this.notificacionesService.findAll();
   }
@@ -59,6 +65,7 @@ export class NotificacionesController {
   }
 
   @Patch(':idNotificacion/leida')
+  @Permiso(94)
   marcarComoLeida(@Param('idNotificacion') idNotificacion: number) {
     return this.notificacionesService.marcarComoLeida(+idNotificacion);
   }
@@ -72,6 +79,7 @@ export class NotificacionesController {
   }
 
   @Delete(':idNotificacion')
+  @Permiso(95)
   remove(@Param('idNotificacion') idNotificacion: number) {
     return this.notificacionesService.remove(+idNotificacion);
   }

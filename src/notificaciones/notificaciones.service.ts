@@ -1,11 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Notificaciones } from './entities/notificacione.entity';
 import { CreateNotificacioneDto, UpdateNotificacioneDto } from './dto';
 import { Usuarios } from 'src/usuarios/entities/usuario.entity';
 import { WebsocketGateway } from 'src/websocket/websocket.gateway';
-import { Productos } from 'src/productos/entities/producto.entity';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { EmailService } from 'src/auth/email/email.service';
 import { stockBajoEmail, caducidadEmail } from 'src/auth/email/mail.body';
@@ -24,8 +23,6 @@ export class NotificacionesService {
     private readonly notificacionRepository: Repository<Notificaciones>,
     @InjectRepository(Usuarios)
     private readonly usuarioRepository: Repository<Usuarios>,
-    @InjectRepository(Productos)
-    private readonly productoRepository: Repository<Productos>,
     private readonly websocketGateway: WebsocketGateway,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
@@ -61,32 +58,8 @@ export class NotificacionesService {
       order: { createdAt: 'DESC' },
     });
 
-    // Obtener los ID de productos de las notificaciones
-    const idsProductos = notificaciones
-      .map((n) => n.data?.idProducto)
-      .filter((id) => !!id); // solo los que tengan idProducto
-
-    // Consultar estado de esos productos
-    const productos = await this.productoRepository.find({
-      where:
-        idsProductos.length > 0
-          ? { idProducto: In(idsProductos) }
-          : {},
-    });
-
-    // Crear un mapa de idProducto => estado
-    const estadoPorProducto: Record<number, boolean> = {};
-    for (const prod of productos) {
-      if (prod.estado === true) {
-        estadoPorProducto[prod.idProducto] = true;
-      }
-    }
-
-    // Filtrar las notificaciones con idProducto cuyo producto este activo, o que no tengan idProducto
-    return notificaciones.filter((n) => {
-      const idProd = n.data?.idProducto;
-      return !idProd || estadoPorProducto[idProd] === true;
-    });
+    // Retornar todas las notificaciones (ya no se filtran por productos)
+    return notificaciones;
   }
 
   async findOne(id: number) {

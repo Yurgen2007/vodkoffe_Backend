@@ -8,7 +8,6 @@ import {
   JoinColumn,
   BeforeInsert,
 } from 'typeorm';
-import { Productos } from '../../productos/entities/producto.entity';
 import { Unidades } from '../../unidades/entities/unidad.entity';
 import { LoteMateriaPrima } from '../../lote-materia-prima/entities/lote-materia-prima.entity';
 import { Movimientos } from '../../movimientos/entities/movimiento.entity';
@@ -21,7 +20,7 @@ export class Lotes {
   @Column('character varying', { name: 'codigo_lote', length: 50, unique: true })
   codigoLote: string;
 
-  @Column('integer', { name: 'cantidad_unidades' })
+  @Column('integer', { name: 'cantidad_unidades', default: 0 })
   cantidadUnidades: number;
 
   @Column({ name: 'fecha_produccion', type: 'date' })
@@ -48,11 +47,6 @@ export class Lotes {
   @UpdateDateColumn({ name: 'updated_at', type: 'timestamp', default: () => 'now()' })
   updatedAt: Date;
 
-  // Relación con Producto
-  @ManyToOne(() => Productos, (productos) => productos.lotes)
-  @JoinColumn([{ name: 'fk_producto', referencedColumnName: 'idProducto' }])
-  producto: Productos;
-
   // Relación con Unidades
   @OneToMany(() => Unidades, (unidades) => unidades.lote)
   unidades: Unidades[];
@@ -68,6 +62,8 @@ export class Lotes {
   // Calcular costo total antes de insertar
   @BeforeInsert()
   calcularCostoTotal() {
-    this.costoTotal = this.cantidadUnidades * this.costoUnitario;
+    const cantidad = this.cantidadUnidades || 0;
+    this.cantidadUnidades = cantidad;
+    this.costoTotal = cantidad * (this.costoUnitario || 0);
   }
 }

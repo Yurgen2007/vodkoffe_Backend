@@ -17,7 +17,7 @@ import { JwtGuard } from 'src/auth/guards/jwt.guard';
 import { PermisoGuard } from 'src/auth/guards/permiso.guard';
 import { Permiso } from 'src/auth/decorators/permiso.decorator';
 
-// @UseGuards(JwtGuard, PermisoGuard)
+@UseGuards(JwtGuard, PermisoGuard)
 @Controller('inventarios')
 export class InventariosController {
   constructor(private readonly inventariosService: InventariosService) {}
@@ -46,13 +46,12 @@ export class InventariosController {
   }
 
   @Patch('state/:idInventario')
-  @Permiso(31)
+  @Permiso(30)
   stastus(@Param('idInventario') idInventario: number) {
     return this.inventariosService.changeStatus(+idInventario);
   }
 
   @Delete(':idInventario')
-  @Permiso(32)
   remove(@Param('idInventario') idInventario: number) {
     return this.inventariosService.remove(+idInventario);
   }

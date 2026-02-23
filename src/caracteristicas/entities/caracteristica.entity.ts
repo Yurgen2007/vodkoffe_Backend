@@ -6,7 +6,7 @@ import {
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
-import { Productos } from '../../productos/entities/producto.entity';
+import { Unidades } from '../../unidades/entities/unidad.entity';
 
 @Entity('caracteristicas')
 export class Caracteristicas {
@@ -28,6 +28,7 @@ export class Caracteristicas {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
-  @OneToMany(() => Productos, (producto) => producto.fkCaracteristica)
-  productos: Productos[];
+  // Relación con Unidades
+  @OneToMany(() => Unidades, (unidad) => unidad.caracteristica)
+  unidades: Unidades[];
 }

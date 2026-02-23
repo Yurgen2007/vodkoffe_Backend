@@ -8,7 +8,8 @@ import {
   Delete,
   ParseIntPipe,
   HttpCode,
-  HttpStatus
+  HttpStatus,
+  UseGuards
 } from '@nestjs/common';
 import { UnidadesService } from './unidades.service';
 import { CreateUnidadDto, UpdateUnidadDto } from './dto';
@@ -16,7 +17,11 @@ import {
   RegistrarUnidadesLoteDto, 
   RegistrarUnidadIndividualDto 
 } from './dto/registrar-unidades.dto';
+import { JwtGuard } from 'src/auth/guards/jwt.guard';
+import { PermisoGuard } from 'src/auth/guards/permiso.guard';
+import { Permiso } from 'src/auth/decorators/permiso.decorator';
 
+@UseGuards(JwtGuard, PermisoGuard)
 @Controller('unidades')
 export class UnidadesController {
   constructor(private readonly unidadesService: UnidadesService) {}
@@ -28,6 +33,7 @@ export class UnidadesController {
    * POST /unidades/lote/:loteId/registrar-multiple
    */
   @Post('lote/:loteId/registrar-multiple')
+  @Permiso(18)
   @HttpCode(HttpStatus.CREATED)
   async registrarMultiple(
     @Param('loteId', ParseIntPipe) loteId: number,
@@ -42,6 +48,7 @@ export class UnidadesController {
    * POST /unidades/lote/:loteId/registrar
    */
   @Post('lote/:loteId/registrar')
+  @Permiso(18)
   @HttpCode(HttpStatus.CREATED)
   async registrarIndividual(
     @Param('loteId', ParseIntPipe) loteId: number,
@@ -56,6 +63,7 @@ export class UnidadesController {
    * GET /unidades/lote/:loteId
    */
   @Get('lote/:loteId')
+  @Permiso(19)
   async obtenerPorLote(@Param('loteId', ParseIntPipe) loteId: number) {
     return this.unidadesService.obtenerUnidadesPorLote(loteId);
   }
@@ -72,6 +80,7 @@ export class UnidadesController {
   // ==================== ENDPOINTS CRUD ORIGINALES ====================
 
   @Post()
+  @Permiso(18)
   create(@Body() createUnidadDto: CreateUnidadDto) {
     return this.unidadesService.create(createUnidadDto);
   }
@@ -87,6 +96,7 @@ export class UnidadesController {
   }
 
   @Patch(':id')
+  @Permiso(20)
   update(
     @Param('id', ParseIntPipe) id: number, 
     @Body() updateUnidadDto: UpdateUnidadDto
@@ -95,6 +105,7 @@ export class UnidadesController {
   }
 
   @Delete(':id')
+  @Permiso(21)
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id', ParseIntPipe) id: number) {
     await this.unidadesService.remove(id);

@@ -5,9 +5,22 @@ export class CreateUnidadDto {
   codigoUnidad: string;
 
   @IsOptional()
-  @IsIn(['DISPONIBLE', 'VENDIDA', 'DEGUSTACION', 'ALIANZA'])
+  @IsIn(['DISPONIBLE', 'VENDIDA', 'DEGUSTACION', 'ALIANZA', 'OTRO'])
   estado?: string;
 
+  @IsOptional()
   @IsInt()
-  fkLote: number;
+  fkLote?: number;
+
+  @IsOptional()
+  @IsInt()
+  fkInventario?: number;
+
+  @IsOptional()
+  @IsInt()
+  fkCaracteristica?: number;
+
+  @IsOptional()
+  @IsInt()
+  fkUnidadMedida?: number;
 }

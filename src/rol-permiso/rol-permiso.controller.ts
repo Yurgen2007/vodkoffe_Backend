@@ -2,7 +2,10 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, ParseIntP
 import { RolPermisoService } from './rol-permiso.service';
 import { CreateRolPermisoDto, UpdateRolPermisoDto } from './dto';
 import { JwtGuard } from 'src/auth/guards/jwt.guard';
-@UseGuards(JwtGuard)
+import { PermisoGuard } from 'src/auth/guards/permiso.guard';
+import { Permiso } from 'src/auth/decorators/permiso.decorator';
+
+@UseGuards(JwtGuard, PermisoGuard)
 @Controller('rol-permiso')
 export class RolPermisoController {
   constructor(private readonly rolPermisoService: RolPermisoService) {}

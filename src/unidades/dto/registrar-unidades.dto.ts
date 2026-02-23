@@ -1,12 +1,5 @@
-import { IsString, IsInt, IsArray, ValidateNested, IsOptional, MaxLength, ArrayMinSize, ArrayMaxSize } from 'class-validator';
+import { IsInt, IsArray, ValidateNested, ArrayMinSize, ArrayMaxSize } from 'class-validator';
 import { Type } from 'class-transformer';
-
-// DTO para registrar una sola unidad
-export class RegistrarUnidadDto {
-  @IsString()
-  @MaxLength(100)
-  identificadorUsuario: string;
-}
 
 // DTO para registrar múltiples unidades de una vez
 export class RegistrarUnidadesLoteDto {
@@ -21,21 +14,21 @@ export class RegistrarUnidadesLoteDto {
   unidades: RegistrarUnidadDto[];
 }
 
+// DTO para unidades individuales (solo código generado automáticamente)
+export class RegistrarUnidadDto {
+  // No requiere campos - el código se genera automáticamente
+}
+
 // DTO para registrar una sola unidad a un lote existente
 export class RegistrarUnidadIndividualDto {
   @IsInt()
   loteId: number;
-
-  @IsString()
-  @MaxLength(100)
-  identificadorUsuario: string;
 }
 
 // DTO para respuesta
 export class UnidadRegistradaResponseDto {
   idUnidad: number;
   codigoUnidad: string;
-  identificadorUsuario: string;
   estado: string;
   loteId: number;
   createdAt: Date;

@@ -65,8 +65,8 @@ export class SeedsService {
       },
       {
         idRuta: 6,
-        nombre: 'Productos',
-        href: 'bodega/productos',
+        nombre: 'unidades',
+        href: 'bodega/unidades',
         icono: 'CubeIcon',
         listed: true,
         estado: true,

@@ -3,7 +3,9 @@ import {
   Entity,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
+import { Unidades } from '../../unidades/entities/unidad.entity';
 
 @Entity('inventarios', { schema: 'public' })
 export class Inventarios {
@@ -28,4 +30,8 @@ export class Inventarios {
     default: () => "now()",
   })
   updatedAt: Date;
+
+  // Relación con Unidades
+  @OneToMany(() => Unidades, (unidad) => unidad.inventario)
+  unidades: Unidades[];
 }
