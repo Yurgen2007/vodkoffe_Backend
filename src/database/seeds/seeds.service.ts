@@ -33,13 +33,16 @@ export class SeedsService {
   ) {}
 
   async seed() {
-    console.log('cli seed:database');
+    // Initialize database connection if not initialized
+    if (!AppDataSource.isInitialized) {
+      await AppDataSource.initialize();
+    }
 
+    console.log('cli seed:database');
     console.log('Poblar la base de datos con datos defecto');
 
     const roles = [
       { idRol: 1, nombre: 'Administrador', estado: true },
-      // { idRol: 2, nombre: 'Usuario1', estado: true },
     ];
 
     const modulos = [
@@ -59,6 +62,7 @@ export class SeedsService {
       },
     ];
 
+    // Removed: Notificaciones (idRuta: 21) and Lote Materia Prima (idRuta: 20)
     const rutas = [
       {
         idRuta: 1,
@@ -103,7 +107,6 @@ export class SeedsService {
         estado: true,
         fkModulo: { idModulo: 2 },
       },
-      // Nuevas rutas
       {
         idRuta: 17,
         nombre: 'Lotes',
@@ -131,25 +134,8 @@ export class SeedsService {
         estado: true,
         fkModulo: { idModulo: 2 },
       },
-      {
-        idRuta: 20,
-        nombre: 'Lote Materia Prima',
-        href: 'bodega/lote-materia-prima',
-        icono: 'BeakerIcon',
-        listed: true,
-        estado: true,
-        fkModulo: { idModulo: 2 },
-      },
-      {
-        idRuta: 21,
-        nombre: 'Notificaciones',
-        href: 'admin/notificaciones',
-        icono: 'BellIcon',
-        listed: true,
-        estado: true,
-        fkModulo: { idModulo: 1 },
-      },
-      // Nuevo modulo: Ingresos/Egresos
+      // Removed: Lote Materia Prima (idRuta: 20)
+      // Removed: Notificaciones (idRuta: 21)
       {
         idRuta: 22,
         nombre: 'Ingresos/Egresos',
@@ -161,6 +147,7 @@ export class SeedsService {
       },
     ];
 
+    // Removed permissions for idRuta: 20 (Lote Materia Prima) and idRuta: 21 (Notificaciones)
     const permisos = [
       { idPermiso: 1, permiso: 'Crear Usuario', fkRuta: { idRuta: 1 } },
       { idPermiso: 2, permiso: 'Registro Masivo', fkRuta: { idRuta: 1 } },
@@ -187,44 +174,31 @@ export class SeedsService {
       { idPermiso: 62, permiso: 'Eliminar unidad medida', fkRuta: { idRuta: 16 } },
       { idPermiso: 71, permiso: 'Exportar PDF', fkRuta: { idRuta: 6 } },
       { idPermiso: 72, permiso: 'Vender', fkRuta: { idRuta: 6 } },
-      // Permisos para Caracteristicas
       { idPermiso: 73, permiso: 'Crear Caracteristica', fkRuta: { idRuta: 6 } },
       { idPermiso: 74, permiso: 'Listar Caracteristica', fkRuta: { idRuta: 6 } },
       { idPermiso: 75, permiso: 'Actualizar Caracteristica', fkRuta: { idRuta: 6 } },
       { idPermiso: 76, permiso: 'Eliminar Caracteristica', fkRuta: { idRuta: 6 } },
-      // Permisos para Lotes (idRuta: 17)
       { idPermiso: 77, permiso: 'Crear Lote', fkRuta: { idRuta: 17 } },
       { idPermiso: 78, permiso: 'Listar Lote', fkRuta: { idRuta: 17 } },
       { idPermiso: 79, permiso: 'Actualizar Lote', fkRuta: { idRuta: 17 } },
       { idPermiso: 80, permiso: 'Eliminar Lote', fkRuta: { idRuta: 17 } },
-      // Permisos para Materias Primas (idRuta: 18)
       { idPermiso: 81, permiso: 'Crear Materia Prima', fkRuta: { idRuta: 18 } },
       { idPermiso: 82, permiso: 'Listar Materia Prima', fkRuta: { idRuta: 18 } },
       { idPermiso: 83, permiso: 'Actualizar Materia Prima', fkRuta: { idRuta: 18 } },
       { idPermiso: 84, permiso: 'Eliminar Materia Prima', fkRuta: { idRuta: 18 } },
-      // Permisos para Movimientos (idRuta: 19)
       { idPermiso: 85, permiso: 'Crear Movimiento', fkRuta: { idRuta: 19 } },
       { idPermiso: 86, permiso: 'Listar Movimiento', fkRuta: { idRuta: 19 } },
       { idPermiso: 87, permiso: 'Actualizar Movimiento', fkRuta: { idRuta: 19 } },
       { idPermiso: 88, permiso: 'Eliminar Movimiento', fkRuta: { idRuta: 19 } },
-      // Permisos para Lote Materia Prima (idRuta: 20)
-      { idPermiso: 89, permiso: 'Crear Lote Materia Prima', fkRuta: { idRuta: 20 } },
-      { idPermiso: 90, permiso: 'Listar Lote Materia Prima', fkRuta: { idRuta: 20 } },
-      { idPermiso: 91, permiso: 'Actualizar Lote Materia Prima', fkRuta: { idRuta: 20 } },
-      { idPermiso: 92, permiso: 'Eliminar Lote Materia Prima', fkRuta: { idRuta: 20 } },
-      // Permisos para Notificaciones (idRuta: 21)
-      { idPermiso: 93, permiso: 'Listar Notificacion', fkRuta: { idRuta: 21 } },
-      { idPermiso: 94, permiso: 'Marcar leida', fkRuta: { idRuta: 21 } },
-      { idPermiso: 95, permiso: 'Eliminar Notificacion', fkRuta: { idRuta: 21 } },
-      // Permisos para Ingresos/Egresos (idRuta: 22)
+      // Removed: idPermiso 89-95 (Lote Materia Prima and Notificaciones)
       { idPermiso: 96, permiso: 'Crear Ingreso/Egreso', fkRuta: { idRuta: 22 } },
       { idPermiso: 97, permiso: 'Listar Ingreso/Egreso', fkRuta: { idRuta: 22 } },
       { idPermiso: 98, permiso: 'Actualizar Ingreso/Egreso', fkRuta: { idRuta: 22 } },
       { idPermiso: 99, permiso: 'Eliminar Ingreso/Egreso', fkRuta: { idRuta: 22 } },
     ];
 
+    // Updated rol_permiso without the removed permissions
     const rol_permiso = [
-      // Administrador tiene TODOS los permisos
       { idRolPermiso: 1, estado: true, fkPermiso: { idPermiso: 1 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 2, estado: true, fkPermiso: { idPermiso: 2 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 3, estado: true, fkPermiso: { idPermiso: 3 }, fkRol: { idRol: 1 } },
@@ -244,53 +218,33 @@ export class SeedsService {
       { idRolPermiso: 36, estado: true, fkPermiso: { idPermiso: 36 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 37, estado: true, fkPermiso: { idPermiso: 37 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 38, estado: true, fkPermiso: { idPermiso: 38 }, fkRol: { idRol: 1 } },
-      // Permisos de unidades medida
       { idRolPermiso: 59, estado: true, fkPermiso: { idPermiso: 59 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 60, estado: true, fkPermiso: { idPermiso: 60 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 61, estado: true, fkPermiso: { idPermiso: 61 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 62, estado: true, fkPermiso: { idPermiso: 62 }, fkRol: { idRol: 1 } },
-      // Permisos de caracteristicas
       { idRolPermiso: 73, estado: true, fkPermiso: { idPermiso: 73 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 74, estado: true, fkPermiso: { idPermiso: 74 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 75, estado: true, fkPermiso: { idPermiso: 75 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 76, estado: true, fkPermiso: { idPermiso: 76 }, fkRol: { idRol: 1 } },
-      // Exportar PDF solo para Administrador
       { idRolPermiso: 71, estado: true, fkPermiso: { idPermiso: 71 }, fkRol: { idRol: 1 } },
-      // Vender solo para Administrador
       { idRolPermiso: 72, estado: true, fkPermiso: { idPermiso: 72 }, fkRol: { idRol: 1 } },
-      // Permisos de Lotes (idRuta: 17)
       { idRolPermiso: 80, estado: true, fkPermiso: { idPermiso: 77 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 81, estado: true, fkPermiso: { idPermiso: 78 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 82, estado: true, fkPermiso: { idPermiso: 79 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 83, estado: true, fkPermiso: { idPermiso: 80 }, fkRol: { idRol: 1 } },
-      // Permisos de Materias Primas (idRuta: 18)
       { idRolPermiso: 84, estado: true, fkPermiso: { idPermiso: 81 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 85, estado: true, fkPermiso: { idPermiso: 82 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 86, estado: true, fkPermiso: { idPermiso: 83 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 87, estado: true, fkPermiso: { idPermiso: 84 }, fkRol: { idRol: 1 } },
-      // Permisos de Movimientos (idRuta: 19)
       { idRolPermiso: 88, estado: true, fkPermiso: { idPermiso: 85 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 89, estado: true, fkPermiso: { idPermiso: 86 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 90, estado: true, fkPermiso: { idPermiso: 87 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 91, estado: true, fkPermiso: { idPermiso: 88 }, fkRol: { idRol: 1 } },
-      // Permisos de Lote Materia Prima (idRuta: 20)
-      { idRolPermiso: 92, estado: true, fkPermiso: { idPermiso: 89 }, fkRol: { idRol: 1 } },
-      { idRolPermiso: 93, estado: true, fkPermiso: { idPermiso: 90 }, fkRol: { idRol: 1 } },
-      { idRolPermiso: 94, estado: true, fkPermiso: { idPermiso: 91 }, fkRol: { idRol: 1 } },
-      { idRolPermiso: 95, estado: true, fkPermiso: { idPermiso: 92 }, fkRol: { idRol: 1 } },
-      // Permisos de Notificaciones (idRuta: 21)
-      { idRolPermiso: 96, estado: true, fkPermiso: { idPermiso: 93 }, fkRol: { idRol: 1 } },
-      { idRolPermiso: 97, estado: true, fkPermiso: { idPermiso: 94 }, fkRol: { idRol: 1 } },
-      { idRolPermiso: 98, estado: true, fkPermiso: { idPermiso: 95 }, fkRol: { idRol: 1 } },
-      // Permisos de Ingresos/Egresos (idRuta: 22)
+      // Removed: rol_permiso for idPermiso 89-95
       { idRolPermiso: 99, estado: true, fkPermiso: { idPermiso: 96 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 100, estado: true, fkPermiso: { idPermiso: 97 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 101, estado: true, fkPermiso: { idPermiso: 98 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 102, estado: true, fkPermiso: { idPermiso: 99 }, fkRol: { idRol: 1 } },
-      // Vendedor puede: listar productos, listar inventarios, vender
-      // { idRolPermiso: 77, estado: true, fkPermiso: { idPermiso: 19 }, fkRol: { idRol: 2 } },
-      // { idRolPermiso: 78, estado: true, fkPermiso: { idPermiso: 29 }, fkRol: { idRol: 2 } },
-      // { idRolPermiso: 79, estado: true, fkPermiso: { idPermiso: 72 }, fkRol: { idRol: 2 } },
     ];
 
     const users = [
@@ -311,23 +265,9 @@ export class SeedsService {
         mailPassword: 'tidj oczk yuaf aqdr',
         fkRol: { idRol: 1 },
       },
-      // {
-      //   idUsuario: 2,
-      //   documento: 111222,
-      //   nombre: 'Usuario1',
-      //   apellido: 'Default',
-      //   edad: 25,
-      //   telefono: '3000000000',
-      //   correo: 'vendedor@farmamedica.com',
-      //   estado: true,
-      //   cargo: 'vendedor',
-      //   password: 'Vendedor123',
-      //   fkRol: { idRol: 2 },
-      // },
     ];
 
-    // PRIMERO: Eliminar TODOS los registros de TODAS las tablas (en orden correcto para evitar errores de foreign key)
-    // Tablas con dependencias
+    // FIRST: Delete ALL records from ALL tables
     console.log('Eliminando rol_permiso...');
     await this.rolPermisoRepository.query(`DELETE FROM rol_permiso`);
 
@@ -337,20 +277,14 @@ export class SeedsService {
     console.log('Eliminando notificaciones...');
     await this.notificacionesRepository.query(`DELETE FROM notificaciones`);
 
-    console.log('Eliminando movimientos_inventario...');
-    await this.dataSource.query(`DELETE FROM movimientos_inventario`);
-
     console.log('Eliminando movimientos...');
     await this.dataSource.query(`DELETE FROM movimientos`);
 
-    console.log('Eliminando inventarios...');
-    await this.dataSource.query(`DELETE FROM inventarios`);
+    console.log('Eliminando lote_materia_prima...');
+    await this.dataSource.query(`DELETE FROM lote_materia_prima`);
 
     console.log('Eliminando unidades...');
     await this.dataSource.query(`DELETE FROM unidades`);
-
-    console.log('Eliminando lote_materia_prima...');
-    await this.dataSource.query(`DELETE FROM lote_materia_prima`);
 
     console.log('Eliminando lotes...');
     await this.dataSource.query(`DELETE FROM lotes`);
@@ -358,11 +292,14 @@ export class SeedsService {
     console.log('Eliminando materias_primas...');
     await this.dataSource.query(`DELETE FROM materias_primas`);
 
-    console.log('Eliminando unidades_medida...');
-    await this.dataSource.query(`DELETE FROM unidades_medida`);
-
     console.log('Eliminando caracteristicas...');
     await this.dataSource.query(`DELETE FROM caracteristicas`);
+
+    console.log('Eliminando inventarios...');
+    await this.dataSource.query(`DELETE FROM inventarios`);
+
+    console.log('Eliminando unidades_medida...');
+    await this.dataSource.query(`DELETE FROM unidades_medida`);
 
     console.log('Eliminando usuarios...');
     await this.usuariosRepository.query(`DELETE FROM usuarios`);
@@ -376,8 +313,7 @@ export class SeedsService {
     console.log('Eliminando roles...');
     await this.rolesRepository.query(`DELETE FROM roles`);
 
-    // SEGUNDO: Insertar en el orden correcto (solo si no existen datos)
-    // 1. Insertar roles
+    // SECOND: Insert only user, permissions, routes, modules, and roles
     console.log('Insertando roles...');
     for (const role of roles) {
       await this.rolesRepository.query(
@@ -386,8 +322,7 @@ export class SeedsService {
       );
     }
 
-    // 2. Insertar módulos
-    console.log('Insertando módulos...');
+    console.log('Insertando modulos...');
     for (const modulo of modulos) {
       await this.modulosRepository.query(
         `INSERT INTO modulos(id_modulo, nombre, href, icono, estado) VALUES ($1,$2,$3,$4,$5)`,
@@ -395,15 +330,10 @@ export class SeedsService {
       );
     }
 
-    // 3. Insertar usuarios
     console.log('Insertando usuarios...');
     for (const user of users) {
       const saltOrRounds = 10;
-      // Si la contraseña ya es un hash de bcrypt (comienza con $2b$10$), usarla directamente
-      const isHashedPassword = user.password.startsWith('$2b$10$');
-      const hashedPassword = isHashedPassword
-        ? user.password
-        : await bcrypt.hash(user.password, saltOrRounds);
+      const hashedPassword = await bcrypt.hash(user.password, saltOrRounds);
       await this.usuariosRepository.query(
         `INSERT INTO usuarios(id_usuario, documento, nombre, apellido, edad, telefono, correo, estado, password, cargo, perfil, service_mail, mail_user, mail_password, fk_rol) 
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
@@ -427,7 +357,6 @@ export class SeedsService {
       );
     }
 
-    // 4. Insertar rutas
     console.log('Insertando rutas...');
     for (const ruta of rutas) {
       await this.rutasRepository.query(
@@ -444,7 +373,6 @@ export class SeedsService {
       );
     }
 
-    // 5. Insertar permisos
     console.log('Insertando permisos...');
     for (const permiso of permisos) {
       await this.permisosRepository.query(
@@ -453,7 +381,6 @@ export class SeedsService {
       );
     }
 
-    // 6. Insertar rol_permiso
     console.log('Insertando rol_permiso...');
     for (const rolPermiso of rol_permiso) {
       await this.rolPermisoRepository.query(
