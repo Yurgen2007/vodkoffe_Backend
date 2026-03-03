@@ -3,7 +3,7 @@
 Abre la carpeta donde desea clonar el proyecto y ejecuta este comando en un cmd
 
 ```bash
-$ git clone https://github.com/Yurgen2007/DorgueriaBackend.git
+$ git clone https://github.com/Yurgen2007/vodkoffe_Backend.git
 ```
 luego de clonarlo le aparecera una carpeta "Backendnestjs" abrala con un click o en la terminal con cd + tabulador
 
@@ -11,14 +11,13 @@ luego de clonarlo le aparecera una carpeta "Backendnestjs" abrala con un click o
 Puede utiliza este 
 ```bash
 $ DB_PASSWORD=123
-$ DB_NAME=drogueria_db
+$ DB_NAME=vodkoffe_db
 $ DB_HOST=localhost
 $ DB_PORT=5432
 $ DB_USERNAME=postgres
 
 #URL básica
 $ BASE_URL='http://localhost:5173'
-$ BACKEND_URL='http://localhost:3000'
 
 
 
