@@ -1,11 +1,12 @@
 import { IsString, IsOptional, IsInt, IsIn } from 'class-validator';
 
 export class CreateUnidadDto {
+  @IsOptional()
   @IsString()
-  codigoUnidad: string;
+  codigoUnidad?: string;
 
   @IsOptional()
-  @IsIn(['DISPONIBLE', 'VENDIDA', 'DEGUSTACION', 'ALIANZA', 'OTRO'])
+  @IsIn(['DISPONIBLE', 'VENDIDA', 'DEGUSTACION', 'ALIANZA', 'OTRO', 'INACTIVO'])
   estado?: string;
 
   @IsOptional()

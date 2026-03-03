@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, LessThanOrEqual, MoreThanOrEqual, Between } from 'typeorm';
 import { Notificaciones } from './entities/notificacione.entity';
 import { CreateNotificacioneDto, UpdateNotificacioneDto } from './dto';
 import { Usuarios } from 'src/usuarios/entities/usuario.entity';
@@ -9,6 +9,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { EmailService } from 'src/auth/email/email.service';
 import { stockBajoEmail, caducidadEmail } from 'src/auth/email/mail.body';
 import { ConfigService } from '@nestjs/config';
+import { Lotes } from 'src/lotes/entities/lote.entity';
 
 interface MailCredentials {
   serviceMail: string;
@@ -23,6 +24,8 @@ export class NotificacionesService {
     private readonly notificacionRepository: Repository<Notificaciones>,
     @InjectRepository(Usuarios)
     private readonly usuarioRepository: Repository<Usuarios>,
+    @InjectRepository(Lotes)
+    private readonly loteRepository: Repository<Lotes>,
     private readonly websocketGateway: WebsocketGateway,
     private readonly emailService: EmailService,
     private readonly configService: ConfigService,
@@ -371,9 +374,349 @@ export class NotificacionesService {
   }
 
   async verificarInventariosYNotificar() {
-    console.log('Iniciando verificacion de inventarios...');
-    // El stock y vencimiento ahora se manejan por lotes
-    // Esta función se mantiene por compatibilidad
-    console.log('Verificacion de inventarios completada - ahora manejado por lotes');
+    console.log('Ejecutando verificación diaria de inventarios y lotes...');
+    await this.notificarLotesPorVencer();
+    await this.notificarLotesStockBajo();
+    console.log('Verificación de inventarios y lotes completada');
+  }
+
+  /**
+   * Notifica cuando la cantidad de unidades es menor o igual a 5
+   */
+  async notificarLotesStockBajo() {
+    console.log('🔍 Verificando lotes con stock bajo...');
+
+    const STOCK_MINIMO = 5;
+
+    // Buscar lotes con cantidad menor o igual a 5 y activos
+    const lotesStockBajo = await this.loteRepository.find({
+      where: { estado: true },
+    });
+
+    // Filtrar lotes con stock bajo
+    const lotesFiltrados = lotesStockBajo.filter(lote => 
+      lote.cantidadUnidades !== null && 
+      lote.cantidadUnidades <= STOCK_MINIMO &&
+      lote.cantidadUnidades > 0
+    );
+
+    console.log(`📦 Se encontraron ${lotesFiltrados.length} lotes con stock bajo (≤${STOCK_MINIMO} unidades)`);
+    console.log('Lotes:', lotesFiltrados.map(l => ({ codigo: l.codigoLote, cantidad: l.cantidadUnidades })));
+
+    if (lotesFiltrados.length === 0) {
+      console.log('✅ No hay lotes con stock bajo');
+      return { message: 'No hay lotes con stock bajo', lotesEncontrados: 0 };
+    }
+
+    // Obtener administradores y vendedores
+    const receptores = await this.buscarAdministradores();
+
+    if (!receptores || receptores.length === 0) {
+      console.log('⚠️ No se encontraron receptores para las notificaciones');
+      return { message: 'No hay receptores', receptores: 0 };
+    }
+
+    // Obtener credenciales de email
+    const mailCredentials = await this.getMailCredentials();
+
+    let notificacionesEnviadas = 0;
+
+    for (const lote of lotesFiltrados) {
+      const mensaje = `El lote "${lote.codigoLote}" tiene stock bajo: ${lote.cantidadUnidades} unidades restantes. ¡Considera reabastecer!`;
+
+      // Verificar si ya se envió una notificación para este lote (stock bajo)
+      const notificacionExistente = await this.notificacionRepository.findOne({
+        where: {
+          titulo: `Stock bajo: ${lote.codigoLote}`,
+        },
+      });
+
+      if (notificacionExistente) {
+        console.log(`⏭️ Ya se notificó sobre el stock bajo del lote ${lote.codigoLote}, omitiendo...`);
+        continue;
+      }
+
+      for (const usuario of receptores) {
+        console.log(`📤 Enviando notificación de stock bajo a ${usuario.nombre} sobre lote ${lote.codigoLote}`);
+
+        // 1. Guardar y emitir notificación
+        await this.enviarYGuardarNotificacion(
+          `Stock bajo: ${lote.codigoLote}`,
+          mensaje,
+          true,
+          usuario,
+          {
+            idLote: lote.idLote,
+            codigoLote: lote.codigoLote,
+            cantidadUnidades: lote.cantidadUnidades,
+          },
+        );
+
+        // 2. Enviar correo electrónico
+        if (usuario.correo) {
+          try {
+            await this.emailService.sendStockBajoEmail(
+              usuario.correo,
+              usuario.nombre,
+              lote.codigoLote,
+              lote.cantidadUnidades,
+              mailCredentials
+            );
+            console.log(`📧 Email de stock bajo enviado a ${usuario.correo}`);
+          } catch (emailError) {
+            console.error(`❌ Error enviando email de stock bajo a ${usuario.correo}:`, emailError);
+          }
+        }
+
+        notificacionesEnviadas++;
+      }
+    }
+
+    console.log(`✅ Verificación de stock bajo completada. Notificaciones enviadas: ${notificacionesEnviadas}`);
+    return { message: 'Verificación de stock completada', notificacionesEnviadas };
+  }
+
+  /**
+   * Notifica inmediatamente cuando se crea un lote con stock bajo
+   */
+  async notificarUnLoteStockBajo(lote: any) {
+    console.log('🔔 Verificando lote recién creado para stock bajo:', lote.codigoLote);
+    
+    if (!lote.cantidadUnidades || lote.cantidadUnidades > 5 || lote.cantidadUnidades <= 0) {
+      console.log('El lote no tiene stock bajo');
+      return;
+    }
+    
+    console.log(`✅ El lote ${lote.codigoLote} tiene stock bajo (${lote.cantidadUnidades} unidades) - enviando notificación...`);
+    
+    // Obtener administradores y vendedores
+    const receptores = await this.buscarAdministradores();
+    
+    if (!receptores || receptores.length === 0) {
+      console.log('⚠️ No se encontraron receptores');
+      return;
+    }
+    
+    const mensaje = `El lote "${lote.codigoLote}" tiene stock bajo: ${lote.cantidadUnidades} unidades restantes. ¡Considera reabastecer!`;
+    
+    // Obtener credenciales de email
+    const mailCredentials = await this.getMailCredentials();
+    
+    for (const usuario of receptores) {
+      // 1. Guardar notificación en el sistema
+      await this.enviarYGuardarNotificacion(
+        `Stock bajo: ${lote.codigoLote}`,
+        mensaje,
+        true,
+        usuario,
+        {
+          idLote: lote.idLote,
+          codigoLote: lote.codigoLote,
+          cantidadUnidades: lote.cantidadUnidades,
+        },
+      );
+      
+      // 2. Enviar email
+      if (usuario.correo) {
+        try {
+          await this.emailService.sendStockBajoEmail(
+            usuario.correo,
+            usuario.nombre,
+            lote.codigoLote,
+            lote.cantidadUnidades,
+            mailCredentials
+          );
+          console.log(`📧 Email enviado a ${usuario.correo}`);
+        } catch (emailError) {
+          console.error(`❌ Error enviando email:`, emailError);
+        }
+      }
+    }
+    
+    console.log(`✅ Notificación de stock bajo enviada para lote ${lote.codigoLote}`);
+  }
+
+  /**
+   * Notifica a administradores y vendedores cuando un lote está por vencer en 15 días
+   */
+  async notificarLotesPorVencer() {
+    console.log('🔍 Verificando lotes próximos a vencer...');
+
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0); // Resetear a medianoche
+    
+    const fechaLimite = new Date(hoy);
+    fechaLimite.setDate(fechaLimite.getDate() + 15); // 15 días hacia adelante
+
+    // Buscar lotes que tienen fecha de vencimiento y están activos
+    const allLotes = await this.loteRepository.find({
+      where: { estado: true },
+    });
+
+    // Filtrar lotes por vencer en los próximos 15 días
+    const lotesPorVencer = allLotes.filter(lote => {
+      if (!lote.fechaVencimiento) return false;
+      const fechaVenc = new Date(lote.fechaVencimiento);
+      fechaVenc.setHours(0, 0, 0, 0);
+      return fechaVenc >= hoy && fechaVenc <= fechaLimite;
+    });
+
+    console.log(`📦 Se encontraron ${lotesPorVencer.length} lotes por vencer en los próximos 15 días`);
+    console.log('Lotes encontrados:', lotesPorVencer.map(l => ({ codigo: l.codigoLote, fecha: l.fechaVencimiento })));
+
+    if (lotesPorVencer.length === 0) {
+      console.log('✅ No hay lotes por vencer en los próximos 15 días');
+      return { message: 'No hay lotes por vencer', lotesEncontrados: 0 };
+    }
+
+    // Obtener administradores y vendedores
+    const receptores = await this.buscarAdministradores();
+
+    if (!receptores || receptores.length === 0) {
+      console.log('⚠️ No se encontraron receptores para las notificaciones');
+      return { message: 'No hay receptores', receptores: 0 };
+    }
+
+    console.log(`📋 Receptores encontrados: ${receptores.map(r => r.nombre).join(', ')}`);
+
+    // Por cada lote por vencer, notificar a todos los receptores
+    let notificacionesEnviadas = 0;
+    
+    // Obtener credenciales de email
+    const mailCredentials = await this.getMailCredentials();
+    
+    for (const lote of lotesPorVencer) {
+      const fechaVenc = new Date(lote.fechaVencimiento).toLocaleDateString('es-ES');
+      const diasRestantes = Math.ceil((new Date(lote.fechaVencimiento).getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+
+      const mensaje = `El lote "${lote.codigoLote}" (${lote.cantidadUnidades} unidades) vence el ${fechaVenc}. ¡Quedan solo ${diasRestantes} días!`;
+
+      // Verificar si ya se envió una notificación para este lote
+      const notificacionExistente = await this.notificacionRepository.findOne({
+        where: {
+          titulo: `Lote por vencer: ${lote.codigoLote}`,
+        },
+      });
+
+      if (notificacionExistente) {
+        console.log(`⏭️ Ya se notificó sobre el lote ${lote.codigoLote}, omitiendo...`);
+        continue;
+      }
+
+      for (const usuario of receptores) {
+        console.log(`📤 Enviando notificación a ${usuario.nombre} sobre lote ${lote.codigoLote}`);
+
+        // 1. Guardar y emitir notificación en el sistema
+        await this.enviarYGuardarNotificacion(
+          `Lote por vencer: ${lote.codigoLote}`,
+          mensaje,
+          false,
+          usuario,
+          {
+            idLote: lote.idLote,
+            codigoLote: lote.codigoLote,
+            fechaVencimiento: lote.fechaVencimiento,
+            diasRestantes,
+          },
+        );
+        
+        // 2. Enviar correo electrónico
+        if (usuario.correo) {
+          try {
+            await this.emailService.sendLotePorVencerEmail(
+              usuario.correo,
+              usuario.nombre,
+              lote.codigoLote,
+              fechaVenc,
+              diasRestantes,
+              mailCredentials
+            );
+            console.log(`📧 Email enviado a ${usuario.correo}`);
+          } catch (emailError) {
+            console.error(`❌ Error enviando email a ${usuario.correo}:`, emailError);
+          }
+        }
+        
+        notificacionesEnviadas++;
+      }
+    }
+
+    console.log(`✅ Verificación de lotes por vencer completada. Notificaciones enviadas: ${notificacionesEnviadas}`);
+    return { message: 'Verificación completada', notificacionesEnviadas };
+  }
+
+  /**
+   * Notifica inmediatamente cuando se crea un lote que está por vencer
+   */
+  async notificarUnLotePorVencer(lote: any) {
+    console.log('🔔 Verificando lote recién creado:', lote.codigoLote);
+    
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    
+    if (!lote.fechaVencimiento) {
+      console.log('El lote no tiene fecha de vencimiento');
+      return;
+    }
+    
+    const fechaVenc = new Date(lote.fechaVencimiento);
+    fechaVenc.setHours(0, 0, 0, 0);
+    const diasRestantes = Math.ceil((fechaVenc.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (diasRestantes <= 0 || diasRestantes > 15) {
+      console.log(`El lote ${lote.codigoLote} no está en rango de 15 días (${diasRestantes} días)`);
+      return;
+    }
+    
+    console.log(`✅ El lote ${lote.codigoLote} vence en ${diasRestantes} días - enviando notificación...`);
+    
+    // Obtener administradores y vendedores
+    const receptores = await this.buscarAdministradores();
+    
+    if (!receptores || receptores.length === 0) {
+      console.log('⚠️ No se encontraron receptores');
+      return;
+    }
+    
+    const fechaVencStr = fechaVenc.toLocaleDateString('es-ES');
+    const mensaje = `El lote "${lote.codigoLote}" (${lote.cantidadUnidades} unidades) vence el ${fechaVencStr}. ¡Quedan solo ${diasRestantes} días!`;
+    
+    // Obtener credenciales de email
+    const mailCredentials = await this.getMailCredentials();
+    
+    for (const usuario of receptores) {
+      // 1. Guardar notificación en el sistema
+      await this.enviarYGuardarNotificacion(
+        `Lote por vencer: ${lote.codigoLote}`,
+        mensaje,
+        false,
+        usuario,
+        {
+          idLote: lote.idLote,
+          codigoLote: lote.codigoLote,
+          fechaVencimiento: lote.fechaVencimiento,
+          diasRestantes,
+        },
+      );
+      
+      // 2. Enviar email
+      if (usuario.correo) {
+        try {
+          await this.emailService.sendLotePorVencerEmail(
+            usuario.correo,
+            usuario.nombre,
+            lote.codigoLote,
+            fechaVencStr,
+            diasRestantes,
+            mailCredentials
+          );
+          console.log(`📧 Email enviado a ${usuario.correo}`);
+        } catch (emailError) {
+          console.error(`❌ Error enviando email:`, emailError);
+        }
+      }
+    }
+    
+    console.log(`✅ Notificación enviada para lote ${lote.codigoLote}`);
   }
 }

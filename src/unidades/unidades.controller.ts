@@ -9,7 +9,8 @@ import {
   ParseIntPipe,
   HttpCode,
   HttpStatus,
-  UseGuards
+  UseGuards,
+  Query
 } from '@nestjs/common';
 import { UnidadesService } from './unidades.service';
 import { CreateUnidadDto, UpdateUnidadDto } from './dto';
@@ -83,6 +84,16 @@ export class UnidadesController {
   @Permiso(18)
   create(@Body() createUnidadDto: CreateUnidadDto) {
     return this.unidadesService.create(createUnidadDto);
+  }
+
+  /**
+   * Verifica si un código de unidad ya existe
+   * GET /unidades/verificar-codigo?codigo=XXX
+   */
+  @Get('verificar-codigo')
+  async verificarCodigo(@Query('codigo') codigo: string) {
+    const existe = await this.unidadesService.verificarCodigoExiste(codigo);
+    return { existe, codigo };
   }
 
   @Get()

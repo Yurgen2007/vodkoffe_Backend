@@ -19,10 +19,6 @@ export class Movimientos {
   @Column('character varying', { name: 'tipo', length: 20 })
   tipo: string; // 'VENTA', 'NO_VENTA', 'INVENTARIO'
 
-  // Campo para especificar el tipo de no venta: 'DEGUSTACION', 'ALIANZA', 'OTRO'
-  @Column('character varying', { name: 'tipo_no_venta', length: 20, nullable: true })
-  tipoNoVenta: string;
-
   // Campos para ventas
   @Column('integer', { name: 'cantidad_vendida', default: 0 })
   cantidadVendida: number;
@@ -32,9 +28,6 @@ export class Movimientos {
 
   @Column('integer', { name: 'cantidad_alianza', default: 0 })
   cantidadAlianza: number;
-
-  @Column('integer', { name: 'cantidad_otro', default: 0 })
-  cantidadOtro: number;
 
   @Column('integer', { name: 'cantidad_total' })
   cantidadTotal: number;
@@ -91,7 +84,7 @@ export class Movimientos {
       this.cantidadTotal = this.cantidadInventario || 0;
     } else {
       // Si es venta o no venta
-      this.cantidadTotal = this.cantidadVendida + this.cantidadDegustacion + this.cantidadAlianza + this.cantidadOtro;
+      this.cantidadTotal = this.cantidadVendida + this.cantidadDegustacion + this.cantidadAlianza;
       // Solo se cobra lo vendido
       this.precioTotal = this.cantidadVendida * this.precioUnitario;
     }

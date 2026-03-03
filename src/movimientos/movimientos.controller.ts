@@ -22,24 +22,6 @@ export class MovimientosController {
     return this.movimientosService.findAll();
   }
 
-  @Get('reporte-mensual')
-  getReporteMensual(@Query('mes') mes: string, @Query('anio') anio: string) {
-    return this.movimientosService.getReporteMensual(+mes, +anio);
-  }
-
-  @Get('reporte-lote/:loteId')
-  getReportePorLote(
-    @Param('loteId') loteId: string,
-    @Query('mes') mes?: string,
-    @Query('anio') anio?: string,
-  ) {
-    return this.movimientosService.getReportePorLote(
-      +loteId,
-      mes ? +mes : undefined,
-      anio ? +anio : undefined,
-    );
-  }
-
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.movimientosService.findOne(+id);

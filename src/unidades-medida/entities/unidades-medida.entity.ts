@@ -32,6 +32,6 @@ export class UnidadesMedida {
   updatedAt: Date;
 
   // Relación con Materias Primas
-  @OneToMany(() => MateriasPrimas, (materiasPrimas) => materiasPrimas.unidadMedida)
+  @OneToMany(() => MateriasPrimas, (materiasPrimas) => materiasPrimas.unidadMedida, { onDelete: 'SET NULL' })
   materiasPrimas: MateriasPrimas[];
 }

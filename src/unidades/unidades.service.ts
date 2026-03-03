@@ -32,6 +32,19 @@ export class UnidadesService {
   // ==================== CREAR UNIDAD ====================
 
   async create(dto: CreateUnidadDto): Promise<Unidades> {
+    // Verificar que el código de unidad no esté duplicado
+    if (dto.codigoUnidad) {
+      const unidadExistente = await this.unidadesRepository.findOne({
+        where: { codigoUnidad: dto.codigoUnidad },
+      });
+      
+      if (unidadExistente) {
+        throw new ConflictException(
+          `El código de unidad "${dto.codigoUnidad}" ya está registrado. Por favor use un código diferente.`
+        );
+      }
+    }
+
     let lote: Lotes | null = null;
     let loteId: number | null = null;
 
@@ -88,17 +101,20 @@ export class UnidadesService {
     const cantidadActual = await this.unidadesRepository.count({ where: { fkLote: loteId } });
     await this.lotesRepository.update(loteId, { cantidadUnidades: cantidadActual });
 
+    // Si el lote estaba INACTIVO (por ejemplo, todas las unidades vendidas)
+    // y ahora se agrega una nueva unidad, cambiar el lote a ACTIVO
+    if (lote && lote.estado === false && cantidadActual > 0) {
+      await this.lotesRepository.update(loteId, { estado: true });
+    }
+
     return unidadGuardada;
   }
 
   // ==================== ACTUALIZAR UNIDAD ====================
 
   async update(id: number, dto: UpdateUnidadDto): Promise<Unidades> {
-    console.log('UPDATE - ID:', id, '- DTO fkLote:', dto.fkLote);
-    
     const unidad = await this.findOne(id);
     const loteAnteriorId = unidad.fkLote;
-    console.log('Lote Anterior:', loteAnteriorId);
     
     let loteNuevoId: number | null = null;
     let loteCambio = false;
@@ -108,13 +124,11 @@ export class UnidadesService {
     
     // Procesar el lote si se envió en el DTO y es diferente al actual
     if (dto.fkLote !== undefined && dto.fkLote !== null && dto.fkLote !== loteAnteriorId) {
-      console.log('Cambiando lote de', loteAnteriorId, 'a', dto.fkLote);
       const lote = await this.lotesRepository.findOne({ where: { idLote: dto.fkLote } });
       if (!lote) throw new NotFoundException(`Lote con ID ${dto.fkLote} no encontrado`);
       
       // Verificar que el lote no esté lleno
       const unidadesEnNuevoLote = await this.unidadesRepository.count({ where: { fkLote: dto.fkLote } });
-      console.log('Unidades en nuevo lote:', unidadesEnNuevoLote);
       if (unidadesEnNuevoLote >= MAX_UNIDADES_POR_LOTE) {
         throw new BadRequestException(`El lote ya está lleno (máximo ${MAX_UNIDADES_POR_LOTE} unidades)`);
       }
@@ -124,12 +138,10 @@ export class UnidadesService {
       
       // Usar UPDATE directo para evitar problemas con relaciones de TypeORM
       await this.unidadesRepository.update(id, { fkLote: dto.fkLote });
-      console.log('UPDATE completado');
       
       // NO llamar a save() aquí porque sobrescribiría el cambio hecho por update()
       // En cambio, obtenemos la unidad actualizada
       const unidadActualizada = await this.findOne(id);
-      console.log('Unidad actualizada - fkLote:', unidadActualizada.fkLote);
       
       // Actualizar cantidades de los lotes involucrados
       if (loteAnteriorId) {
@@ -157,6 +169,11 @@ export class UnidadesService {
       unidad.fkCaracteristica = dto.fkCaracteristica || null;
     }
     
+    // Actualizar fkUnidadMedida si se proporciona
+    if (dto.fkUnidadMedida !== undefined) {
+      unidad.fkUnidadMedida = dto.fkUnidadMedida || null;
+    }
+    
     // Guardar cambios de otros campos (no lote, porque ya se manejó arriba)
     const unidadGuardada = await this.unidadesRepository.save(unidad);
     return unidadGuardada;
@@ -164,14 +181,14 @@ export class UnidadesService {
 
   async findAll(): Promise<Unidades[]> {
     return await this.unidadesRepository.find({
-      relations: ['lote', 'inventario', 'caracteristica'],
+      relations: ['lote', 'inventario', 'caracteristica', 'unidadMedida'],
     });
   }
 
   async findOne(id: number): Promise<Unidades> {
     const unidad = await this.unidadesRepository.findOne({
       where: { idUnidad: id },
-      relations: ['lote', 'inventario', 'caracteristica'],
+      relations: ['lote', 'inventario', 'caracteristica', 'unidadMedida'],
     });
     if (!unidad) {
       throw new NotFoundException(`Unidad con ID ${id} no encontrada`);
@@ -222,11 +239,30 @@ export class UnidadesService {
         );
       }
 
-      // 2. Crear unidades
+      // 2. Verificar que los códigos no estén duplicados
+      const codigosRecibidos = dto.unidades.map(u => u.codigoUnidad).filter(c => c);
+      
+      if (codigosRecibidos.length > 0) {
+        // Buscar si alguno de los códigos ya existe
+        const unidadesExistentes = await queryRunner.manager.find(Unidades, {
+          where: codigosRecibidos.map(codigoUnidad => ({ codigoUnidad })),
+        });
+        
+        if (unidadesExistentes.length > 0) {
+          const codigosDuplicados = unidadesExistentes.map(u => u.codigoUnidad);
+          throw new ConflictException(
+            `Los siguientes códigos ya están registrados: ${codigosDuplicados.join(', ')}. Por favor use códigos diferentes.`
+          );
+        }
+      }
+
+      // 3. Crear unidades
       const unidadesCreadas: Unidades[] = [];
       
       for (let i = 0; i < dto.unidades.length; i++) {
-        const codigoUnidad = this.generarCodigoUnidad(lote.codigoLote, unidadesActuales + i + 1);
+        // Usar código personalizado si se proporciona, o generar uno automáticamente
+        const codigoPersonalizado = dto.unidades[i]?.codigoUnidad;
+        const codigoUnidad = codigoPersonalizado || this.generarCodigoUnidad(lote.codigoLote, unidadesActuales + i + 1);
         
         const unidad = queryRunner.manager.create(Unidades, {
           codigoUnidad,
@@ -240,6 +276,19 @@ export class UnidadesService {
 
       // 3. Actualizar cantidad del lote
       lote.cantidadUnidades = totalUnidades;
+      
+      // Si el lote estaba INACTIVO y todas las unidades fueron vendidas, NO se puede reactivas
+      // Solo se reactiva si el lote estaba inactivo pero aún tenía unidades disponibles
+      const unidadesDisponibles = lote.unidades?.filter(u => u.estado === 'DISPONIBLE').length || 0;
+      if (lote.estado === false && unidadesDisponibles > 0) {
+        lote.estado = true;
+      }
+      
+      // Si el lote ya tiene 12 unidades, se marca como inactivo para evitar más registros
+      if (totalUnidades >= MAX_UNIDADES_POR_LOTE) {
+        lote.estado = false;
+      }
+      
       await queryRunner.manager.save(lote);
 
       await queryRunner.commitTransaction();
@@ -293,6 +342,18 @@ export class UnidadesService {
       const savedUnidad = await queryRunner.manager.save(unidad);
 
       lote.cantidadUnidades = unidadesActuales + 1;
+      
+      // Si el lote ya tiene 12 unidades, se marca como inactivo para evitar más registros
+      if (lote.cantidadUnidades >= MAX_UNIDADES_POR_LOTE) {
+        lote.estado = false;
+      } else if (lote.estado === false) {
+        // Solo activar si no está lleno y tenía unidades disponibles
+        const unidadesDisponibles = lote.unidades?.filter(u => u.estado === 'DISPONIBLE').length || 0;
+        if (unidadesDisponibles > 0) {
+          lote.estado = true;
+        }
+      }
+      
       await queryRunner.manager.save(lote);
 
       await queryRunner.commitTransaction();
@@ -354,5 +415,14 @@ export class UnidadesService {
       loteId: unidad.fkLote || 0,
       createdAt: unidad.createdAt,
     };
+  }
+
+  // ==================== VERIFICAR CÓDIGO EXISTE ====================
+  
+  async verificarCodigoExiste(codigo: string): Promise<boolean> {
+    const unidad = await this.unidadesRepository.findOne({
+      where: { codigoUnidad: codigo },
+    });
+    return !!unidad;
   }
 }

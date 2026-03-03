@@ -1,20 +1,12 @@
-import { IsString, IsNumber, IsDate, IsOptional, Min, IsInt, IsIn, ValidateIf } from 'class-validator';
+import { IsString, IsNumber, IsDate, IsOptional, Min, IsInt, ValidateIf } from 'class-validator';
 
 export class CreateMovimientoDto {
   @IsString()
-  @IsIn(['VENTA', 'NO_VENTA', 'INVENTARIO'])
   tipo: string; // 'VENTA', 'NO_VENTA', 'INVENTARIO'
-
-  // Tipo de no venta: degustación, alianza u otro - obligatorio si tipo es NO_VENTA
-  @ValidateIf((o) => o.tipo === 'NO_VENTA')
-  @IsString()
-  @IsIn(['DEGUSTACION', 'ALIANZA', 'OTRO'])
-  tipoNoVenta?: string;
 
   // Tipo de inventario - obligatorio si tipo es INVENTARIO
   @ValidateIf((o) => o.tipo === 'INVENTARIO')
   @IsString()
-  @IsIn(['entrada', 'salida', 'ajuste'])
   tipoInventario?: string;
 
   // Campos para ventas
@@ -29,10 +21,6 @@ export class CreateMovimientoDto {
   @IsNumber()
   @Min(0)
   cantidadAlianza: number;
-
-  @IsNumber()
-  @Min(0)
-  cantidadOtro: number;
 
   // Campo para inventario
   @ValidateIf((o) => o.tipo === 'INVENTARIO')
@@ -53,8 +41,10 @@ export class CreateMovimientoDto {
   @IsString()
   nombreCliente?: string;
 
+  // Fecha del movimiento - si no se proporciona, se usa la fecha actual
+  @IsOptional()
   @IsDate()
-  fechaMovimiento: Date;
+  fechaMovimiento?: Date;
 
   @IsInt()
   fkLote: number;
@@ -69,3 +59,5 @@ export class CreateMovimientoDto {
   @IsInt()
   fkUnidad?: number;
 }
+
+export class UpdateMovimientoDto extends CreateMovimientoDto {}

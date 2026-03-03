@@ -12,6 +12,26 @@ import { Unidades } from '../../unidades/entities/unidad.entity';
 import { LoteMateriaPrima } from '../../lote-materia-prima/entities/lote-materia-prima.entity';
 import { Movimientos } from '../../movimientos/entities/movimiento.entity';
 
+// Transformer para manejar fechas correctamente
+const dateTransformer = {
+  from: (value: string | Date | null): Date | null => {
+    if (!value) return null;
+    if (value instanceof Date) return value;
+    // La fecha viene como string 'YYYY-MM-DD', crear fecha en hora local
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  },
+  to: (value: Date | string | null): string | null => {
+    if (!value) return null;
+    if (typeof value === 'string') return value;
+    // Convertir a formato YYYY-MM-DD
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  },
+};
+
 @Entity('lotes', { schema: 'public' })
 export class Lotes {
   @PrimaryGeneratedColumn({ type: 'integer', name: 'id_lote' })
@@ -23,10 +43,10 @@ export class Lotes {
   @Column('integer', { name: 'cantidad_unidades', default: 0 })
   cantidadUnidades: number;
 
-  @Column({ name: 'fecha_produccion', type: 'date' })
+  @Column({ name: 'fecha_produccion', type: 'date', transformer: dateTransformer })
   fechaProduccion: Date;
 
-  @Column({ name: 'fecha_vencimiento', type: 'date', nullable: true })
+  @Column({ name: 'fecha_vencimiento', type: 'date', nullable: true, transformer: dateTransformer })
   fechaVencimiento: Date;
 
   @Column('decimal', { name: 'costo_unitario', precision: 12, scale: 2 })

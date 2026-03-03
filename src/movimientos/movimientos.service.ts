@@ -5,6 +5,7 @@ import { Movimientos } from './entities/movimiento.entity';
 import { CreateMovimientoDto, UpdateMovimientoDto } from './dto';
 import { Lotes } from '../lotes/entities/lote.entity';
 import { Unidades } from '../unidades/entities/unidad.entity';
+import { NotificacionesService } from '../notificaciones/notificaciones.service';
 
 @Injectable()
 export class MovimientosService {
@@ -15,6 +16,7 @@ export class MovimientosService {
     private readonly lotesRepository: Repository<Lotes>,
     @InjectRepository(Unidades)
     private readonly unidadesRepository: Repository<Unidades>,
+    private readonly notificacionesService: NotificacionesService,
   ) {}
 
   async create(createMovimientoDto: CreateMovimientoDto): Promise<Movimientos> {
@@ -31,29 +33,10 @@ export class MovimientosService {
     // Validar que al menos una cantidad sea mayor a 0
     const totalUnidades = createMovimientoDto.cantidadVendida + 
                           createMovimientoDto.cantidadDegustacion + 
-                          createMovimientoDto.cantidadAlianza +
-                          createMovimientoDto.cantidadOtro;
+                          createMovimientoDto.cantidadAlianza;
     
     if (totalUnidades === 0) {
       throw new BadRequestException('Debe especificar al menos una cantidad mayor a 0');
-    }
-
-    // Validar que si es NO_VENTA, se especifique el tipoNoVenta
-    if (createMovimientoDto.tipo === 'NO_VENTA' && !createMovimientoDto.tipoNoVenta) {
-      throw new BadRequestException('Debe especificar el tipo de no venta (DEGUSTACION, ALIANZA u OTRO)');
-    }
-
-    // Validar que si es NO_VENTA, no haya cantidad vendida
-    if (createMovimientoDto.tipo === 'NO_VENTA' && createMovimientoDto.cantidadVendida > 0) {
-      throw new BadRequestException('Un movimiento de tipo NO_VENTA no puede tener cantidad vendida');
-    }
-
-    // Validar que si es VENTA, no haya cantidades de no venta
-    if (createMovimientoDto.tipo === 'VENTA' && 
-        (createMovimientoDto.cantidadDegustacion > 0 || 
-         createMovimientoDto.cantidadAlianza > 0 || 
-         createMovimientoDto.cantidadOtro > 0)) {
-      throw new BadRequestException('Un movimiento de tipo VENTA solo puede tener cantidad vendida');
     }
 
     // Buscar el lote
@@ -75,18 +58,19 @@ export class MovimientosService {
     }
 
     // Crear el movimiento
+    // Si no se proporciona fechaMovimiento, usar la fecha actual
+    const fechaMovimiento = createMovimientoDto.fechaMovimiento || new Date();
+    
     const movimiento = this.movimientosRepository.create({
       tipo: createMovimientoDto.tipo,
-      tipoNoVenta: createMovimientoDto.tipoNoVenta,
       cantidadVendida: createMovimientoDto.cantidadVendida,
       cantidadDegustacion: createMovimientoDto.cantidadDegustacion,
       cantidadAlianza: createMovimientoDto.cantidadAlianza,
-      cantidadOtro: createMovimientoDto.cantidadOtro,
       cantidadTotal: totalUnidades,
       precioUnitario: createMovimientoDto.precioUnitario,
       precioTotal: createMovimientoDto.cantidadVendida * createMovimientoDto.precioUnitario,
       descripcion: createMovimientoDto.descripcion,
-      fechaMovimiento: createMovimientoDto.fechaMovimiento,
+      fechaMovimiento: fechaMovimiento,
       lote: lote,
     });
 
@@ -96,46 +80,54 @@ export class MovimientosService {
     // Actualizar el estado de las unidades vendidas/movidas
     const unidadesAMover = unidadesDisponibles.slice(0, totalUnidades);
     
-    // Asignar estados según el tipo de movimiento
-    let indiceActual = 0;
-    
-    // Unidades vendidas
+    // Las primeras unidades son vendidas
     for (let i = 0; i < createMovimientoDto.cantidadVendida; i++) {
-      unidadesAMover[indiceActual].estado = 'VENDIDA';
-      indiceActual++;
+      await this.unidadesRepository.update(unidadesAMover[i].idUnidad, {
+        estado: 'VENDIDA' as any,
+      });
     }
     
-    // Unidades de degustación
+    // Las siguientes son para degustación
+    const startDegustacion = createMovimientoDto.cantidadVendida;
     for (let i = 0; i < createMovimientoDto.cantidadDegustacion; i++) {
-      unidadesAMover[indiceActual].estado = 'DEGUSTACION';
-      indiceActual++;
+      await this.unidadesRepository.update(unidadesAMover[startDegustacion + i].idUnidad, {
+        estado: 'DEGUSTACION' as any,
+      });
     }
     
-    // Unidades de alianza
+    // Las siguientes son para alianza
+    const startAlianza = startDegustacion + createMovimientoDto.cantidadDegustacion;
     for (let i = 0; i < createMovimientoDto.cantidadAlianza; i++) {
-      unidadesAMover[indiceActual].estado = 'ALIANZA';
-      indiceActual++;
-    }
-    
-    // Unidades de otro tipo
-    for (let i = 0; i < createMovimientoDto.cantidadOtro; i++) {
-      unidadesAMover[indiceActual].estado = 'OTRO';
-      indiceActual++;
+      await this.unidadesRepository.update(unidadesAMover[startAlianza + i].idUnidad, {
+        estado: 'ALIANZA' as any,
+      });
     }
 
-    // Guardar los cambios en las unidades
-    await this.unidadesRepository.save(unidadesAMover);
+    // Notificar si el lote se agotó y marcar como inactivo
+    const unidadesRestantes = await this.lotesRepository.findOne({
+      where: { idLote: createMovimientoDto.fkLote },
+      relations: ['unidades'],
+    });
+    
+    const disponibles = unidadesRestantes?.unidades.filter(u => u.estado === 'DISPONIBLE').length || 0;
+    if (disponibles === 0) {
+      // Inactivar el lote completamente
+      await this.lotesRepository.update(createMovimientoDto.fkLote, { estado: false });
+      
+      await this.notificacionesService.create({
+        titulo: 'Lote agotado',
+        mensaje: `El lote ${lote.codigoLote} se ha agotado y ha sido inactivado`,
+        fkUsuario: createMovimientoDto.fkUsuario || 1,
+      });
+    }
 
     return savedMovimiento;
   }
 
   private async createMovimientoInventario(createMovimientoDto: CreateMovimientoDto): Promise<Movimientos> {
-    if (!createMovimientoDto.tipoInventario) {
-      throw new BadRequestException('Debe especificar el tipo de inventario (entrada, salida, ajuste)');
-    }
-
+    // Validar cantidad de inventario
     if (!createMovimientoDto.cantidadInventario || createMovimientoDto.cantidadInventario <= 0) {
-      throw new BadRequestException('Debe especificar una cantidad válida para el movimiento de inventario');
+      throw new BadRequestException('La cantidad de inventario debe ser mayor a 0');
     }
 
     // Buscar la unidad
@@ -147,27 +139,24 @@ export class MovimientosService {
       throw new NotFoundException(`Unidad con ID ${createMovimientoDto.fkUnidad} no encontrada`);
     }
 
-    // Crear el movimiento de inventario
-    const lote = createMovimientoDto.fkLote 
-      ? await this.lotesRepository.findOne({ where: { idLote: createMovimientoDto.fkLote } })
-      : null;
-
+    // Crear el movimiento
+    const fechaMovimiento = createMovimientoDto.fechaMovimiento || new Date();
+    
     const movimiento = this.movimientosRepository.create({
-      tipo: 'INVENTARIO',
-      tipoInventario: createMovimientoDto.tipoInventario,
-      cantidadInventario: createMovimientoDto.cantidadInventario,
+      tipo: createMovimientoDto.tipo,
       cantidadTotal: createMovimientoDto.cantidadInventario,
+      cantidadInventario: createMovimientoDto.cantidadInventario,
+      tipoInventario: createMovimientoDto.tipoInventario,
       descripcion: createMovimientoDto.descripcion,
-      fechaMovimiento: createMovimientoDto.fechaMovimiento,
+      fechaMovimiento: fechaMovimiento,
       unidad: unidad,
-      lote: lote || undefined,
     });
 
     return await this.movimientosRepository.save(movimiento);
   }
 
-  findAll(): Promise<Movimientos[]> {
-    return this.movimientosRepository.find({
+  async findAll(): Promise<Movimientos[]> {
+    return await this.movimientosRepository.find({
       relations: ['lote', 'unidad', 'usuario'],
       order: { fechaMovimiento: 'DESC' },
     });
@@ -178,16 +167,38 @@ export class MovimientosService {
       where: { idMovimiento: id },
       relations: ['lote', 'unidad', 'usuario'],
     });
+
     if (!movimiento) {
       throw new NotFoundException(`Movimiento con ID ${id} no encontrado`);
     }
+
     return movimiento;
+  }
+
+  async findByLote(loteId: number): Promise<Movimientos[]> {
+    return await this.movimientosRepository.find({
+      where: { lote: { idLote: loteId } },
+      relations: ['lote', 'unidad', 'usuario'],
+      order: { fechaMovimiento: 'DESC' },
+    });
+  }
+
+  async findByDateRange(startDate: Date, endDate: Date): Promise<Movimientos[]> {
+    return await this.movimientosRepository.find({
+      where: {
+        fechaMovimiento: Between(startDate, endDate),
+      },
+      relations: ['lote', 'unidad', 'usuario'],
+      order: { fechaMovimiento: 'DESC' },
+    });
   }
 
   async update(id: number, updateMovimientoDto: UpdateMovimientoDto): Promise<Movimientos> {
     const movimiento = await this.findOne(id);
-    this.movimientosRepository.merge(movimiento, updateMovimientoDto);
-    return this.movimientosRepository.save(movimiento);
+    
+    Object.assign(movimiento, updateMovimientoDto);
+    
+    return await this.movimientosRepository.save(movimiento);
   }
 
   async remove(id: number): Promise<void> {
@@ -195,83 +206,71 @@ export class MovimientosService {
     await this.movimientosRepository.remove(movimiento);
   }
 
-  // Reporte de ventas por mes
-  async getReporteMensual(mes: number, anio: number) {
-    const fechaInicio = new Date(anio, mes - 1, 1);
-    const fechaFin = new Date(anio, mes, 0);
-
+  async getResumenByLote(loteId: number) {
     const movimientos = await this.movimientosRepository.find({
-      where: {
-        fechaMovimiento: Between(fechaInicio, fechaFin),
-      },
+      where: { lote: { idLote: loteId } },
       relations: ['lote'],
     });
 
-    // Filtrar solo movimientos de venta
-    const movimientosVenta = movimientos.filter(m => m.tipo === 'VENTA' || m.tipo === 'NO_VENTA');
-    
+    const movimientosVenta = movimientos.filter(m => m.tipo === 'VENTA');
     const totalVendidas = movimientosVenta.reduce((sum, m) => sum + m.cantidadVendida, 0);
     const totalDegustacion = movimientosVenta.reduce((sum, m) => sum + m.cantidadDegustacion, 0);
     const totalAlianza = movimientosVenta.reduce((sum, m) => sum + m.cantidadAlianza, 0);
-    const totalOtro = movimientosVenta.reduce((sum, m) => sum + (m.cantidadOtro || 0), 0);
-    const totalIngresos = movimientosVenta.reduce((sum, m) => sum + Number(m.precioTotal), 0);
-
-    // Movimientos de inventario
-    const movimientosInventario = movimientos.filter(m => m.tipo === 'INVENTARIO');
-    const totalEntradas = movimientosInventario
-      .filter(m => m.tipoInventario === 'entrada')
-      .reduce((sum, m) => sum + m.cantidadInventario, 0);
-    const totalSalidas = movimientosInventario
-      .filter(m => m.tipoInventario === 'salida')
-      .reduce((sum, m) => sum + m.cantidadInventario, 0);
+    const totalVentas = movimientosVenta.reduce((sum, m) => sum + Number(m.precioTotal || 0), 0);
+    
+    const movimientosNoVenta = movimientos.filter(m => m.tipo === 'NO_VENTA');
+    const totalNoVentas = movimientosNoVenta.reduce((sum, m) => sum + m.cantidadTotal, 0);
 
     return {
-      mes,
-      anio,
-      totalUnidadesVendidas: totalVendidas,
-      totalUnidadesDegustacion: totalDegustacion,
-      totalUnidadesAlianza: totalAlianza,
-      totalUnidadesOtro: totalOtro,
-      totalUnidadesMovidas: totalVendidas + totalDegustacion + totalAlianza + totalOtro,
-      totalIngresos,
-      totalEntradasInventario: totalEntradas,
-      totalSalidasInventario: totalSalidas,
-      movimientos,
+      totalMovimientos: movimientos.length,
+      totalVendidas,
+      totalDegustacion,
+      totalAlianza,
+      totalVentas,
+      totalNoVentas,
+      movimientosVenta,
+      movimientosNoVenta,
     };
   }
 
-  // Reporte por lote
-  async getReportePorLote(loteId: number, mes?: number, anio?: number) {
-    const queryBuilder = this.movimientosRepository
-      .createQueryBuilder('movimiento')
-      .leftJoinAndSelect('movimiento.lote', 'lote')
-      .where('lote.idLote = :loteId', { loteId });
+  async getResumenGeneral() {
+    const movimientos = await this.movimientosRepository.find({
+      relations: ['lote'],
+    });
 
-    if (mes && anio) {
-      const fechaInicio = new Date(anio, mes - 1, 1);
-      const fechaFin = new Date(anio, mes, 0);
-      queryBuilder.andWhere('movimiento.fechaMovimiento BETWEEN :fechaInicio AND :fechaFin', {
-        fechaInicio,
-        fechaFin,
+    const movimientosVenta = movimientos.filter(m => m.tipo === 'VENTA');
+    const totalVendidas = movimientosVenta.reduce((sum, m) => sum + m.cantidadVendida, 0);
+    const totalDegustacion = movimientosVenta.reduce((sum, m) => sum + m.cantidadDegustacion, 0);
+    const totalAlianza = movimientosVenta.reduce((sum, m) => sum + m.cantidadAlianza, 0);
+    const totalIngresos = movimientosVenta.reduce((sum, m) => sum + Number(m.precioTotal || 0), 0);
+    
+    const movimientosNoVenta = movimientos.filter(m => m.tipo === 'NO_VENTA');
+    const totalNoVentas = movimientosNoVenta.reduce((sum, m) => sum + m.cantidadTotal, 0);
+
+    // Calcular egresos (costo de materias primas de los lotes vendidos)
+    const lotesConVentas = new Set(movimientosVenta.map(m => m.lote?.idLote).filter(Boolean));
+    let totalEgresos = 0;
+    
+    for (const loteId of lotesConVentas) {
+      const lote = await this.lotesRepository.findOne({
+        where: { idLote: loteId },
       });
+      if (lote) {
+        totalEgresos += Number(lote.costoMateriasPrimas || 0);
+      }
     }
 
-    const movimientos = await queryBuilder.getMany();
-
-    const totalVendidas = movimientos.reduce((sum, m) => sum + m.cantidadVendida, 0);
-    const totalDegustacion = movimientos.reduce((sum, m) => sum + m.cantidadDegustacion, 0);
-    const totalAlianza = movimientos.reduce((sum, m) => sum + m.cantidadAlianza, 0);
-    const totalOtro = movimientos.reduce((sum, m) => sum + (m.cantidadOtro || 0), 0);
-    const totalIngresos = movimientos.reduce((sum, m) => sum + Number(m.precioTotal), 0);
+    const ganancias = totalIngresos - totalEgresos;
 
     return {
-      loteId,
-      totalUnidadesVendidas: totalVendidas,
-      totalUnidadesDegustacion: totalDegustacion,
-      totalUnidadesAlianza: totalAlianza,
-      totalUnidadesOtro: totalOtro,
+      totalMovimientos: movimientos.length,
+      totalVendidas,
+      totalDegustacion,
+      totalAlianza,
       totalIngresos,
-      movimientos,
+      totalEgresos,
+      ganancias,
+      totalNoVentas,
     };
   }
 }

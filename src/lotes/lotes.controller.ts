@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
-import { LotesService } from './lotes.service';
+import { LotesService, CreateMateriasPrimasConLoteDto } from './lotes.service';
 import { CreateLoteDto, UpdateLoteDto } from './dto';
 import { JwtGuard } from 'src/auth/guards/jwt.guard';
 import { PermisoGuard } from 'src/auth/guards/permiso.guard';
@@ -42,5 +42,11 @@ export class LotesController {
   @Permiso(80)
   remove(@Param('id') id: string) {
     return this.lotesService.remove(+id);
+  }
+
+  @Post('materias-primas')
+  @Permiso(77)
+  crearMateriasPrimasConLote(@Body() createDto: CreateMateriasPrimasConLoteDto) {
+    return this.lotesService.crearMateriasPrimasConLote(createDto);
   }
 }

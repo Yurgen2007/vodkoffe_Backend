@@ -34,6 +34,9 @@ export class MateriasPrimas {
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
 
+  @Column({ name: 'fk_unidad_medida', type: 'integer', nullable: true })
+  fkUnidadMedida: number | null;
+
   @ManyToOne(() => UnidadesMedida, (unidadMedida) => unidadMedida.materiasPrimas, { nullable: true })
   @JoinColumn([{ name: 'fk_unidad_medida', referencedColumnName: 'idUnidad' }])
   unidadMedida: UnidadesMedida;

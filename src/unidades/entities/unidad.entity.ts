@@ -11,7 +11,7 @@ import { Inventarios } from '../../inventarios/entities/inventario.entity';
 import { Caracteristicas } from '../../caracteristicas/entities/caracteristica.entity';
 import { UnidadesMedida } from '../../unidades-medida/entities/unidades-medida.entity';
 
-export type EstadoUnidad = 'DISPONIBLE' | 'VENDIDA' | 'DEGUSTACION' | 'ALIANZA' | 'OTRO';
+export type EstadoUnidad = 'DISPONIBLE' | 'VENDIDA' | 'DEGUSTACION' | 'ALIANZA' | 'OTRO' | 'INACTIVO';
 
 @Entity('unidades', { schema: 'public' })
 export class Unidades {

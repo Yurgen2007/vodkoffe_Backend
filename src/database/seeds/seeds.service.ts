@@ -2,15 +2,19 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
+import { AppDataSource } from '../../data-source';
 import { Roles } from '../../roles/entities/role.entity';
 import { Modulos } from '../../modulos/entities/modulo.entity';
 import { Rutas } from '../../rutas/entities/ruta.entity';
 import { Permisos } from '../../permisos/entities/permiso.entity';
 import { RolPermiso } from '../../rol-permiso/entities/rol-permiso.entity';
 import { Usuarios } from '../../usuarios/entities/usuario.entity';
+import { Notificaciones } from '../../notificaciones/entities/notificacione.entity';
 
 @Injectable()
 export class SeedsService {
+  private dataSource = AppDataSource;
+
   constructor(
     @InjectRepository(Roles)
     private rolesRepository: Repository<Roles>,
@@ -24,6 +28,8 @@ export class SeedsService {
     private rolPermisoRepository: Repository<RolPermiso>,
     @InjectRepository(Usuarios)
     private usuariosRepository: Repository<Usuarios>,
+    @InjectRepository(Notificaciones)
+    private notificacionesRepository: Repository<Notificaciones>,
   ) {}
 
   async seed() {
@@ -67,7 +73,7 @@ export class SeedsService {
         idRuta: 6,
         nombre: 'unidades',
         href: 'bodega/unidades',
-        icono: 'CubeIcon',
+        icono: 'BeakerIcon',
         listed: true,
         estado: true,
         fkModulo: { idModulo: 2 },
@@ -102,7 +108,7 @@ export class SeedsService {
         idRuta: 17,
         nombre: 'Lotes',
         href: 'bodega/lotes',
-        icono: 'BeakerIcon',
+        icono: 'CubeIcon',
         listed: true,
         estado: true,
         fkModulo: { idModulo: 2 },
@@ -111,7 +117,7 @@ export class SeedsService {
         idRuta: 18,
         nombre: 'Materias Primas',
         href: 'bodega/materias-primas',
-        icono: 'BeakerIcon',
+        icono: 'ArchiveBoxIcon',
         listed: true,
         estado: true,
         fkModulo: { idModulo: 2 },
@@ -121,7 +127,7 @@ export class SeedsService {
         nombre: 'Movimientos',
         href: 'bodega/movimientos',
         icono: 'ArrowPathIcon',
-        listed: true,
+        listed: false,
         estado: true,
         fkModulo: { idModulo: 2 },
       },
@@ -139,6 +145,16 @@ export class SeedsService {
         nombre: 'Notificaciones',
         href: 'admin/notificaciones',
         icono: 'BellIcon',
+        listed: true,
+        estado: true,
+        fkModulo: { idModulo: 1 },
+      },
+      // Nuevo modulo: Ingresos/Egresos
+      {
+        idRuta: 22,
+        nombre: 'Ingresos/Egresos',
+        href: 'admin/ingresos-egresos',
+        icono: 'ArrowsRightLeftIcon',
         listed: true,
         estado: true,
         fkModulo: { idModulo: 1 },
@@ -200,6 +216,11 @@ export class SeedsService {
       { idPermiso: 93, permiso: 'Listar Notificacion', fkRuta: { idRuta: 21 } },
       { idPermiso: 94, permiso: 'Marcar leida', fkRuta: { idRuta: 21 } },
       { idPermiso: 95, permiso: 'Eliminar Notificacion', fkRuta: { idRuta: 21 } },
+      // Permisos para Ingresos/Egresos (idRuta: 22)
+      { idPermiso: 96, permiso: 'Crear Ingreso/Egreso', fkRuta: { idRuta: 22 } },
+      { idPermiso: 97, permiso: 'Listar Ingreso/Egreso', fkRuta: { idRuta: 22 } },
+      { idPermiso: 98, permiso: 'Actualizar Ingreso/Egreso', fkRuta: { idRuta: 22 } },
+      { idPermiso: 99, permiso: 'Eliminar Ingreso/Egreso', fkRuta: { idRuta: 22 } },
     ];
 
     const rol_permiso = [
@@ -261,6 +282,11 @@ export class SeedsService {
       { idRolPermiso: 96, estado: true, fkPermiso: { idPermiso: 93 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 97, estado: true, fkPermiso: { idPermiso: 94 }, fkRol: { idRol: 1 } },
       { idRolPermiso: 98, estado: true, fkPermiso: { idPermiso: 95 }, fkRol: { idRol: 1 } },
+      // Permisos de Ingresos/Egresos (idRuta: 22)
+      { idRolPermiso: 99, estado: true, fkPermiso: { idPermiso: 96 }, fkRol: { idRol: 1 } },
+      { idRolPermiso: 100, estado: true, fkPermiso: { idPermiso: 97 }, fkRol: { idRol: 1 } },
+      { idRolPermiso: 101, estado: true, fkPermiso: { idPermiso: 98 }, fkRol: { idRol: 1 } },
+      { idRolPermiso: 102, estado: true, fkPermiso: { idPermiso: 99 }, fkRol: { idRol: 1 } },
       // Vendedor puede: listar productos, listar inventarios, vender
       // { idRolPermiso: 77, estado: true, fkPermiso: { idPermiso: 19 }, fkRol: { idRol: 2 } },
       // { idRolPermiso: 78, estado: true, fkPermiso: { idPermiso: 29 }, fkRol: { idRol: 2 } },
@@ -271,8 +297,8 @@ export class SeedsService {
       {
         idUsuario: 1,
         documento: 123456789,
-        nombre: 'Admin',
-        apellido: 'System',
+        nombre: 'Carlos',
+        apellido: 'Alberto',
         edad: 30,
         telefono: '3001234567',
         correo: 'dipssvodkoffe@gmail.com',
@@ -300,36 +326,57 @@ export class SeedsService {
       // },
     ];
 
-    // PRIMERO: Eliminar TODOS los registros de las tablas dependientes (en orden correcto)
-    // 1. Eliminar todos los rol_permiso
+    // PRIMERO: Eliminar TODOS los registros de TODAS las tablas (en orden correcto para evitar errores de foreign key)
+    // Tablas con dependencias
     console.log('Eliminando rol_permiso...');
     await this.rolPermisoRepository.query(`DELETE FROM rol_permiso`);
 
-    // 2. Eliminar todos los permisos
     console.log('Eliminando permisos...');
     await this.permisosRepository.query(`DELETE FROM permisos`);
 
-    // 3. Eliminar todas las notificaciones
     console.log('Eliminando notificaciones...');
-    await this.permisosRepository.query(`DELETE FROM notificaciones`);
+    await this.notificacionesRepository.query(`DELETE FROM notificaciones`);
 
-    // 4. Eliminar todos los usuarios
+    console.log('Eliminando movimientos_inventario...');
+    await this.dataSource.query(`DELETE FROM movimientos_inventario`);
+
+    console.log('Eliminando movimientos...');
+    await this.dataSource.query(`DELETE FROM movimientos`);
+
+    console.log('Eliminando inventarios...');
+    await this.dataSource.query(`DELETE FROM inventarios`);
+
+    console.log('Eliminando unidades...');
+    await this.dataSource.query(`DELETE FROM unidades`);
+
+    console.log('Eliminando lote_materia_prima...');
+    await this.dataSource.query(`DELETE FROM lote_materia_prima`);
+
+    console.log('Eliminando lotes...');
+    await this.dataSource.query(`DELETE FROM lotes`);
+
+    console.log('Eliminando materias_primas...');
+    await this.dataSource.query(`DELETE FROM materias_primas`);
+
+    console.log('Eliminando unidades_medida...');
+    await this.dataSource.query(`DELETE FROM unidades_medida`);
+
+    console.log('Eliminando caracteristicas...');
+    await this.dataSource.query(`DELETE FROM caracteristicas`);
+
     console.log('Eliminando usuarios...');
     await this.usuariosRepository.query(`DELETE FROM usuarios`);
 
-    // 5. Eliminar todas las rutas
     console.log('Eliminando rutas...');
     await this.rutasRepository.query(`DELETE FROM rutas`);
 
-    // 5. Eliminar todos los módulos
-    console.log('Eliminando módulos...');
+    console.log('Eliminando modulos...');
     await this.modulosRepository.query(`DELETE FROM modulos`);
 
-    // 6. Eliminar todos los roles
     console.log('Eliminando roles...');
     await this.rolesRepository.query(`DELETE FROM roles`);
 
-    // SEGUNDO: Insertar en el orden correcto
+    // SEGUNDO: Insertar en el orden correcto (solo si no existen datos)
     // 1. Insertar roles
     console.log('Insertando roles...');
     for (const role of roles) {

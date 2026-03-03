@@ -112,4 +112,16 @@ export class NotificacionesController {
 
     return { mensaje: 'Revision de inventarios ejecutada' };
   }
+
+  /**
+   * Endpoint específico para verificar lotes por vencer (prueba manual)
+   * GET /notificaciones/verificar-lotes-vencer
+   */
+  @Get('verificar-lotes-vencer')
+  @Permiso(93)
+  async verificarLotesPorVencer() {
+    console.log('🔔 Verificación manual de lotes por vencer iniciada...');
+    await this.notificacionesService.notificarLotesPorVencer();
+    return { mensaje: 'Verificación de lotes por vencer ejecutada' };
+  }
 }
