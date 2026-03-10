@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ConflictException } from '@nestjs/common';
 import { CreateRoleDto, UpdateRoleDto } from './dto';
 import { Roles } from './entities/role.entity';
 import { Repository } from 'typeorm';
@@ -12,6 +12,17 @@ export class RolesService {
   ) {}
 
   async create(createRoleDto: CreateRoleDto): Promise<Roles> {
+    // Verificar que el nombre no esté duplicado
+    const rolExistente = await this.rolRepository.findOne({
+      where: { nombre: createRoleDto.nombre },
+    });
+    
+    if (rolExistente) {
+      throw new ConflictException(
+        `Ya existe un rol con el nombre "${createRoleDto.nombre}". Por favor use otro nombre.`
+      );
+    }
+
     const rol = this.rolRepository.create(createRoleDto);
     return await this.rolRepository.save(rol);
   }

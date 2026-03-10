@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CreateMateriaPrimaDto } from './dto/create-materia-prima.dto';
@@ -16,6 +16,17 @@ export class MateriasPrimasService {
   ) {}
 
   async create(createMateriaPrimaDto: CreateMateriaPrimaDto): Promise<MateriasPrimas> {
+    // Verificar que el nombre no esté duplicado
+    const materiaPrimaExistente = await this.materiaPrimaRepository.findOne({
+      where: { nombre: createMateriaPrimaDto.nombre },
+    });
+    
+    if (materiaPrimaExistente) {
+      throw new ConflictException(
+        `Ya existe una materia prima con el nombre "${createMateriaPrimaDto.nombre}". Por favor use otro nombre.`
+      );
+    }
+
     const materiaPrima = this.materiaPrimaRepository.create({
       nombre: createMateriaPrimaDto.nombre,
       descripcion: createMateriaPrimaDto.descripcion,

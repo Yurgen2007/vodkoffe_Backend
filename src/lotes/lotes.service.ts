@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import { IsNumber, IsString, IsOptional, Min, ValidateNested, IsArray, IsInt } from 'class-validator';
@@ -65,6 +65,7 @@ export class LotesService {
 
     try {
       // Crear el lote
+      // No se crean unidades automáticamente - solo se guarda la cantidad
       const cantidadUnidades = createLoteDto.cantidadUnidades || 0;
       const lote = this.loteRepository.create({
         ...createLoteDto,
@@ -74,18 +75,8 @@ export class LotesService {
       });
       const savedLote = await queryRunner.manager.save(lote);
 
-      // Crear las unidades del lote
-      if (cantidadUnidades > 0) {
-        for (let i = 1; i <= cantidadUnidades; i++) {
-          const codigoUnidad = `${savedLote.codigoLote}-U${i.toString().padStart(2, '0')}`;
-          const unidad = this.unidadesRepository.create({
-            codigoUnidad,
-            estado: 'DISPONIBLE' as EstadoUnidad,
-            fkLote: savedLote.idLote,
-          });
-          await queryRunner.manager.save(unidad);
-        }
-      }
+      // Se eliminó la creación automática de unidades
+      // Las unidades se deben crear manualmente después si es necesario
 
       // Registrar materias primas del lote
       let costoTotalMateriasPrimas = 0;
@@ -137,8 +128,14 @@ export class LotesService {
       }
       
       return savedLote;
-    } catch (error) {
+    } catch (error: any) {
       await queryRunner.rollbackTransaction();
+      
+      // Manejar error de clave duplicada
+      if (error.code === '23505') {
+        throw new BadRequestException(`Ya existe un lote con el código "${createLoteDto.codigoLote}". Por favor use otro código.`);
+      }
+      
       throw error;
     } finally {
       await queryRunner.release();

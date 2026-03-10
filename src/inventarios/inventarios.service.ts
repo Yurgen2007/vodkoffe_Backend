@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  ConflictException,
 } from '@nestjs/common';
 import {
   AgregarStockDto,
@@ -21,6 +22,17 @@ export class InventariosService {
   ) { }
 
   async create(createInventarioDto: CreateInventarioDto): Promise<Inventarios> {
+    // Verificar que el nombre no esté duplicado
+    const inventarioExistente = await this.inventarioRepository.findOne({
+      where: { nombre: createInventarioDto.nombre },
+    });
+    
+    if (inventarioExistente) {
+      throw new ConflictException(
+        `Ya existe un inventario con el nombre "${createInventarioDto.nombre}". Por favor use otro nombre.`
+      );
+    }
+
     const inventario = this.inventarioRepository.create(createInventarioDto);
     return await this.inventarioRepository.save(inventario);
   }

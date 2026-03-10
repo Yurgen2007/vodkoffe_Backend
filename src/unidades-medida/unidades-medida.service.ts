@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { UnidadesMedida } from './entities/unidades-medida.entity';
 import { CreateUnidadesMedidaDto, UpdateUnidadesMedidaDto } from './dto';
 import { Repository } from 'typeorm';
@@ -12,6 +12,17 @@ export class UnidadesMedidaService {
   ){}
 
   async create(createUnidadesMedidaDto: CreateUnidadesMedidaDto):Promise<UnidadesMedida> {
+    // Verificar que el nombre no esté duplicado
+    const unidadExistente = await this.unidadRepository.findOne({
+      where: { nombre: createUnidadesMedidaDto.nombre },
+    });
+    
+    if (unidadExistente) {
+      throw new ConflictException(
+        `Ya existe una unidad de medida con el nombre "${createUnidadesMedidaDto.nombre}". Por favor use otro nombre.`
+      );
+    }
+
     const unidad = this.unidadRepository.create(createUnidadesMedidaDto)
     return await this.unidadRepository.save(unidad)
   }

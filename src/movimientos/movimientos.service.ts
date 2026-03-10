@@ -70,6 +70,7 @@ export class MovimientosService {
       precioUnitario: createMovimientoDto.precioUnitario,
       precioTotal: createMovimientoDto.cantidadVendida * createMovimientoDto.precioUnitario,
       descripcion: createMovimientoDto.descripcion,
+      nombreCliente: createMovimientoDto.nombreCliente,
       fechaMovimiento: fechaMovimiento,
       lote: lote,
     });
