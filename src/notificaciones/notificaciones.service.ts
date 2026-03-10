@@ -309,6 +309,7 @@ export class NotificacionesService {
       .getOne();
 
     if (usuarioConCredenciales && usuarioConCredenciales.serviceMail && usuarioConCredenciales.mailUser && usuarioConCredenciales.mailPassword) {
+      console.log('✅ Usando credenciales de email del usuario:', usuarioConCredenciales.correo);
       return {
         serviceMail: usuarioConCredenciales.serviceMail,
         mailUser: usuarioConCredenciales.mailUser,
@@ -317,10 +318,20 @@ export class NotificacionesService {
     }
 
     // Fallback a variables de entorno
+    const envServiceMail = this.configService.get('SERVICE_MAIL') || 'gmail';
+    const envMailUser = this.configService.get('MAIL_USER') || '';
+    const envMailPassword = this.configService.get('MAIL_PASSWORD') || '';
+    
+    if (envMailUser && envMailPassword) {
+      console.log('✅ Usando credenciales de email de variables de entorno');
+    } else {
+      console.warn('⚠️ No se encontraron credenciales de email configuradas');
+    }
+    
     return {
-      serviceMail: this.configService.get('SERVICE_MAIL') || 'gmail',
-      mailUser: this.configService.get('MAIL_USER') || '',
-      mailPassword: this.configService.get('MAIL_PASSWORD') || '',
+      serviceMail: envServiceMail,
+      mailUser: envMailUser,
+      mailPassword: envMailPassword,
     };
   }
 
@@ -386,6 +397,7 @@ export class NotificacionesService {
   /**
    * Notifica cuando la cantidad de unidades es menor o igual a 5
    * Ahora calcula la cantidad real de unidades desde la tabla de unidades
+   * Incluye todos los estados válidos: DISPONIBLE, ALIANZA, OTRO
    */
   async notificarLotesStockBajo() {
     console.log('🔍 Verificando lotes con stock bajo...');
@@ -401,21 +413,29 @@ export class NotificacionesService {
     const lotesFiltrados: any[] = [];
     
     for (const lote of lotesActivos) {
-      // Contar solo las unidades con estado DISPONIBLE
-      const unidadesDisponibles = await this.unidadesRepository.count({
-        where: { fkLote: lote.idLote, estado: 'DISPONIBLE' as any }
-      });
+      // Contar las unidades con estados válidos (DISPONIBLE, ALIANZA, OTRO)
+      // Excluir: VENDIDA, DEGUSTACION, INACTIVO
+      const estadosValidos = ['DISPONIBLE', 'ALIANZA', 'OTRO'];
+      const unidadesEnTabla = await this.unidadesRepository
+        .createQueryBuilder('unidad')
+        .where('unidad.fkLote = :loteId', { loteId: lote.idLote })
+        .andWhere('unidad.estado IN (:...estados)', { estados: estadosValidos })
+        .getCount();
       
-      // Usar la cantidad real de unidades (si hay registros en la tabla de unidades)
-      // Si no hay unidades registradas, usar el campo cantidadUnidades solo si es mayor que 0
-      const cantidadReal = unidadesDisponibles > 0 ? unidadesDisponibles : (lote.cantidadUnidades || 0);
+      // IMPORTANTE: Solo mostrar notificación si hay unidades registradas en la tabla
+      // Si no hay unidades en la tabla, no mostrar notificación aunque cantidadUnidades > 0
+      // Esto evita notificaciones incorrectas para lotes sin unidades registradas
+      if (unidadesEnTabla === 0) {
+        console.log(`⏭️ Lote ${lote.codigoLote} no tiene unidades registradas en la tabla, omitiendo...`);
+        continue;
+      }
       
-      // Solo incluir lotes con stock bajo real (cantidad real > 0 y <= STOCK_MINIMO)
-      if (cantidadReal > 0 && cantidadReal <= STOCK_MINIMO) {
+      // Solo incluir lotes con stock bajo (unidades en tabla > 0 y <= STOCK_MINIMO)
+      if (unidadesEnTabla > 0 && unidadesEnTabla <= STOCK_MINIMO) {
         lotesFiltrados.push({
           ...lote,
-          cantidadUnidades: cantidadReal,
-          unidadesReales: unidadesDisponibles
+          cantidadUnidades: unidadesEnTabla,
+          unidadesReales: unidadesEnTabla
         });
       }
     }
@@ -474,6 +494,7 @@ export class NotificacionesService {
 
         // 2. Enviar correo electrónico
         if (usuario.correo) {
+          console.log(`📧 Intentando enviar email de stock bajo a ${usuario.correo}...`);
           try {
             await this.emailService.sendStockBajoEmail(
               usuario.correo,
@@ -482,10 +503,12 @@ export class NotificacionesService {
               lote.cantidadUnidades,
               mailCredentials
             );
-            console.log(`📧 Email de stock bajo enviado a ${usuario.correo}`);
+            console.log(`✅ Email de stock bajo enviado a ${usuario.correo}`);
           } catch (emailError) {
             console.error(`❌ Error enviando email de stock bajo a ${usuario.correo}:`, emailError);
           }
+        } else {
+          console.warn(`⚠️ Usuario ${usuario.nombre} no tiene correo electrónico configurado`);
         }
 
         notificacionesEnviadas++;
@@ -499,25 +522,34 @@ export class NotificacionesService {
   /**
    * Notifica inmediatamente cuando se crea un lote con stock bajo
    * Ahora calcula la cantidad real de unidades desde la tabla de unidades
+   * Solo muestra notificación si hay unidades registradas en la tabla
    */
   async notificarUnLoteStockBajo(lote: any) {
     console.log('🔔 Verificando lote recién creado para stock bajo:', lote.codigoLote);
     
-    // Contar las unidades reales con estado DISPONIBLE
-    const unidadesDisponibles = await this.unidadesRepository.count({
-      where: { fkLote: lote.idLote, estado: 'DISPONIBLE' as any }
-    });
+    // Contar las unidades con estados válidos (DISPONIBLE, ALIANZA, OTRO)
+    // Excluir: VENDIDA, DEGUSTACION, INACTIVO
+    const estadosValidos = ['DISPONIBLE', 'ALIANZA', 'OTRO'];
+    const unidadesEnTabla = await this.unidadesRepository
+      .createQueryBuilder('unidad')
+      .where('unidad.fkLote = :loteId', { loteId: lote.idLote })
+      .andWhere('unidad.estado IN (:...estados)', { estados: estadosValidos })
+      .getCount();
     
-    // Usar la cantidad real de unidades (si hay registros en la tabla de unidades)
-    // Si no hay unidades registradas, usar el campo cantidadUnidades solo si es mayor que 0
-    const cantidadReal = unidadesDisponibles > 0 ? unidadesDisponibles : (lote.cantidadUnidades || 0);
+    // IMPORTANTE: Solo mostrar notificación si hay unidades registradas en la tabla
+    // Si no hay unidades en la tabla, no mostrar notificación
+    if (unidadesEnTabla === 0) {
+      console.log(`⏭️ Lote ${lote.codigoLote} no tiene unidades registradas, omitiendo notificación...`);
+      return;
+    }
     
-    if (!cantidadReal || cantidadReal > 5 || cantidadReal <= 0) {
+    // Solo mostrar notificación si stock bajo (unidades en tabla > 0 y <= 5)
+    if (unidadesEnTabla <= 0 || unidadesEnTabla > 5) {
       console.log('El lote no tiene stock bajo');
       return;
     }
     
-    console.log(`✅ El lote ${lote.codigoLote} tiene stock bajo (${cantidadReal} unidades) - enviando notificación...`);
+    console.log(`✅ El lote ${lote.codigoLote} tiene stock bajo (${unidadesEnTabla} unidades) - enviando notificación...`);
     
     // Obtener administradores y vendedores
     const receptores = await this.buscarAdministradores();
@@ -527,7 +559,7 @@ export class NotificacionesService {
       return;
     }
     
-    const mensaje = `El lote "${lote.codigoLote}" tiene stock bajo: ${cantidadReal} unidades restantes. ¡Considera reabastecer!`;
+    const mensaje = `El lote "${lote.codigoLote}" tiene stock bajo: ${unidadesEnTabla} unidades restantes. ¡Considera reabastecer!`;
     
     // Obtener credenciales de email
     const mailCredentials = await this.getMailCredentials();
@@ -542,7 +574,7 @@ export class NotificacionesService {
         {
           idLote: lote.idLote,
           codigoLote: lote.codigoLote,
-          cantidadUnidades: cantidadReal,
+          cantidadUnidades: unidadesEnTabla,
         },
       );
       
@@ -553,7 +585,7 @@ export class NotificacionesService {
             usuario.correo,
             usuario.nombre,
             lote.codigoLote,
-            cantidadReal,
+            unidadesEnTabla,
             mailCredentials
           );
           console.log(`📧 Email enviado a ${usuario.correo}`);
@@ -616,16 +648,25 @@ export class NotificacionesService {
     const mailCredentials = await this.getMailCredentials();
     
     for (const lote of lotesPorVencer) {
-      // Calcular la cantidad real de unidades
-      const unidadesDisponibles = await this.unidadesRepository.count({
-        where: { fkLote: lote.idLote, estado: 'DISPONIBLE' as any }
-      });
-      const cantidadReal = unidadesDisponibles > 0 ? unidadesDisponibles : (lote.cantidadUnidades || 0);
+      // Calcular la cantidad real de unidades con estados válidos (DISPONIBLE, ALIANZA, OTRO)
+      const estadosValidos = ['DISPONIBLE', 'ALIANZA', 'OTRO'];
+      const unidadesEnTabla = await this.unidadesRepository
+        .createQueryBuilder('unidad')
+        .where('unidad.fkLote = :loteId', { loteId: lote.idLote })
+        .andWhere('unidad.estado IN (:...estados)', { estados: estadosValidos })
+        .getCount();
+      
+      // IMPORTANTE: Solo mostrar notificación si hay unidades registradas en la tabla
+      // Si no hay unidades en la tabla, no mostrar notificación
+      if (unidadesEnTabla === 0) {
+        console.log(`⏭️ Lote ${lote.codigoLote} no tiene unidades registradas, omitiendo notificación por vencer...`);
+        continue;
+      }
       
       const fechaVenc = new Date(lote.fechaVencimiento).toLocaleDateString('es-ES');
       const diasRestantes = Math.ceil((new Date(lote.fechaVencimiento).getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
 
-      const mensaje = `El lote "${lote.codigoLote}" (${cantidadReal} unidades) vence el ${fechaVenc}. ¡Quedan solo ${diasRestantes} días!`;
+      const mensaje = `El lote "${lote.codigoLote}" (${unidadesEnTabla} unidades) vence el ${fechaVenc}. ¡Quedan solo ${diasRestantes} días!`;
 
       // Verificar si ya se envió una notificación para este lote
       const notificacionExistente = await this.notificacionRepository.findOne({
@@ -653,7 +694,7 @@ export class NotificacionesService {
             codigoLote: lote.codigoLote,
             fechaVencimiento: lote.fechaVencimiento,
             diasRestantes,
-            cantidadUnidades: cantidadReal,
+            cantidadUnidades: unidadesEnTabla,
           },
         );
         
@@ -705,11 +746,17 @@ export class NotificacionesService {
       return;
     }
     
-    // Calcular la cantidad real de unidades
-    const unidadesDisponibles = await this.unidadesRepository.count({
-      where: { fkLote: lote.idLote, estado: 'DISPONIBLE' as any }
-    });
-    const cantidadReal = unidadesDisponibles > 0 ? unidadesDisponibles : (lote.cantidadUnidades || 0);
+    // Calcular la cantidad real de unidades con estados válidos (DISPONIBLE, ALIANZA, OTRO)
+    const estadosValidos = ['DISPONIBLE', 'ALIANZA', 'OTRO'];
+    const unidadesEnTabla = await this.unidadesRepository
+      .createQueryBuilder('unidad')
+      .where('unidad.fkLote = :loteId', { loteId: lote.idLote })
+      .andWhere('unidad.estado IN (:...estados)', { estados: estadosValidos })
+      .getCount();
+    
+    // Para notificaciones de vencimiento, usamos la cantidad de unidades en la tabla si existe,
+    // o cantidadUnidades del lote como fallback. Si no hay unidades, usamos 0.
+    const cantidadMostrar = unidadesEnTabla > 0 ? unidadesEnTabla : (lote.cantidadUnidades || 0);
     
     console.log(`✅ El lote ${lote.codigoLote} vence en ${diasRestantes} días - enviando notificación...`);
     
@@ -722,7 +769,7 @@ export class NotificacionesService {
     }
     
     const fechaVencStr = fechaVenc.toLocaleDateString('es-ES');
-    const mensaje = `El lote "${lote.codigoLote}" (${cantidadReal} unidades) vence el ${fechaVencStr}. ¡Quedan solo ${diasRestantes} días!`;
+    const mensaje = `El lote "${lote.codigoLote}" (${cantidadMostrar} unidades) vence el ${fechaVencStr}. ¡Quedan solo ${diasRestantes} días!`;
     
     // Obtener credenciales de email
     const mailCredentials = await this.getMailCredentials();
@@ -739,7 +786,7 @@ export class NotificacionesService {
           codigoLote: lote.codigoLote,
           fechaVencimiento: lote.fechaVencimiento,
           diasRestantes,
-          cantidadUnidades: cantidadReal,
+          cantidadUnidades: cantidadMostrar,
         },
       );
       

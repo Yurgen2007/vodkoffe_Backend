@@ -45,7 +45,9 @@ export class CronMonitorService {
 
     /**
      * Verifica y corrige la cantidad de unidades de TODOS los lotes
-     * Solo cuenta las unidades con estado DISPONIBLE
+     * Cuenta las unidades con estados válidos: DISPONIBLE, ALIANZA, OTRO
+     * Excluye: VENDIDA, DEGUSTACION, INACTIVO
+     * Solo actualiza si la cantidad real es > 0
      */
     private async verificarTodosLosLotes(): Promise<{ totalLotes: number; corregidos: number; detalles: any[] }> {
         const lotes = await this.loteRepository.find({ where: { estado: true } });
@@ -53,15 +55,19 @@ export class CronMonitorService {
         let corregidos = 0;
         
         for (const lote of lotes) {
-            // Contar solo las unidades DISPONIBLES en la tabla de unidades
-            const unidadesReales = await this.unidadesRepository.count({
-                where: { fkLote: lote.idLote, estado: 'DISPONIBLE' }
-            });
+            // Contar las unidades con estados válidos (DISPONIBLE, ALIANZA, OTRO)
+            const estadosValidos = ['DISPONIBLE', 'ALIANZA', 'OTRO'];
+            const unidadesReales = await this.unidadesRepository
+                .createQueryBuilder('unidad')
+                .where('unidad.fkLote = :loteId', { loteId: lote.idLote })
+                .andWhere('unidad.estado IN (:...estados)', { estados: estadosValidos })
+                .getCount();
             
             const cantidadAnterior = lote.cantidadUnidades || 0;
             
-            // Si hay discrepancia, corregir
-            if (unidadesReales !== cantidadAnterior) {
+            // Solo corregir si hay una diferencia Y la cantidad real es > 0
+            // No actualizar a 0 para lotes que no tienen unidades registradas
+            if (unidadesReales !== cantidadAnterior && unidadesReales > 0) {
                 console.log(`⚠️ Corrección de cantidad para lote ${lote.codigoLote}: ${cantidadAnterior} -> ${unidadesReales}`);
                 await this.loteRepository.update(lote.idLote, { cantidadUnidades: unidadesReales });
                 corregidos++;

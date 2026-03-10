@@ -122,8 +122,19 @@ export class LotesService {
       }
       
       // Verificar si el lote tiene stock bajo (≤5 unidades)
-      if (savedLote.cantidadUnidades !== null && savedLote.cantidadUnidades <= 5 && savedLote.cantidadUnidades > 0) {
-        console.log(`📦 Lote ${savedLote.codigoLote} tiene stock bajo (${savedLote.cantidadUnidades} unidades) - enviando notificación...`);
+      // Primero verificamos las unidades en la tabla de unidades
+      const estadosValidos = ['DISPONIBLE', 'ALIANZA', 'OTRO'];
+      const unidadesEnTabla = await this.unidadesRepository
+        .createQueryBuilder('unidad')
+        .where('unidad.fkLote = :loteId', { loteId: savedLote.idLote })
+        .andWhere('unidad.estado IN (:...estados)', { estados: estadosValidos })
+        .getCount();
+      
+      // Solo enviar notificación si hay unidades en la tabla O si cantidadUnidades > 0
+      const cantidadParaNotificar = unidadesEnTabla > 0 ? unidadesEnTabla : savedLote.cantidadUnidades;
+      
+      if (cantidadParaNotificar > 0 && cantidadParaNotificar <= 5) {
+        console.log(`📦 Lote ${savedLote.codigoLote} tiene stock bajo (${cantidadParaNotificar} unidades) - enviando notificación...`);
         await this.notificacionesService.notificarUnLoteStockBajo(savedLote);
       }
       
